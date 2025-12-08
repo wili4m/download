@@ -13,9 +13,15 @@ os_release="/etc/os-release"
 
 generic_os_version() {
 
-    os_name="$(cat $os_info | grep -w ^NAME | sed -e "s/NAME=\"//g" -e "s/\"//g")"
-    os_version="$(cat $os_info | grep -w ^VERSION | sed -e "s/VERSION=\"//g" -e "s/\"//g")"
+    os_name="$(cat $os_release | grep -w ^NAME | sed -e "s/NAME=\"//g" -e "s/\"//g")"
+    os_version="$(cat $os_release | grep -w ^VERSION | sed -e "s/VERSION=\"//g" -e "s/\"//g")"
     os_info="$os_name $os_version"
+
+    print $os_info
+
+    if [ -z $os_info ]; then
+        echo "OS not identified"
+    fi
 
 }
 
@@ -54,10 +60,10 @@ if [ -e $debian_release ]; then
 else
 
     # Verifies if it's a CentOS:
-    if [ -e $centreport_os_version ]; then
+    if [ -e $centos_release ]; then
 
         # Collect the release:
-        report_os_version=$(cat $centreport_os_version)
+        report_os_version=$(cat $centos_release)
 
     # Oracle Linux
     elif [ -e $ol_release ]; then
@@ -84,7 +90,6 @@ if [[ ! -z $report_os_version ]]; then
     echo $report_os_version
 
 else
-
-    echo "Null"
+        generic_os_version
 
 fi
