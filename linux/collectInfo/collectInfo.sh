@@ -79,7 +79,7 @@ network_info() {
     if [ -e "/usr/bin/netstat" ]; then
 
         got_v4_ports=$(netstat -tuln4 | grep tcp | awk '{print$4}' | cut -d: -f2)
-        got_v6_ports=$(echo -n `netstat -tuln6 | grep tcp | awk '{print$4}' | cut -d: -f2)
+        got_v6_ports=$(netstat -tuln6 | grep tcp | awk '{print$4}' | cut -d: -f2)
 
     # Using ss:
     elif [ -e "/usr/bin/ss" ]; then
