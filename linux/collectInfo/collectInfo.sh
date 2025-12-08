@@ -9,6 +9,25 @@ hostname=$(hostname -f)
 # Identifies OS version:
 os_release="/etc/os-release"
 
+# Check Topia/VRX status
+check_topia() {
+
+    # Check if Topia/VRX agent is running:
+    topia="$(pgrep topiad)"
+
+    if [[ ! -z $topia ]]; then
+
+        vrx_status="VRX_is_running"
+
+    else
+
+        vrx_status="VRX_not_running"
+
+    fi
+
+}
+
+
 # Generic Function to get OS version
 generic_os_version() {
 
@@ -20,6 +39,24 @@ generic_os_version() {
     if [[ -z $os_info ]]; then
 
         os_info="OS not identified"
+
+    fi
+
+}
+
+# Vendor Information
+vendor_info() {
+
+    # Check if chassis_vendor returns any hardware manufacturer:
+    if [[ $( cat /sys/class/dmi/id/chassis_vendor | grep "No Enclosure") ]]; then
+
+        # If no, it means it's virtual machine:
+        vendor=$(cat /sys/class/dmi/id/sys_vendor)
+
+    else
+
+        # If yes, get chassis/hardware vendor:
+        vendor=$(cat /sys/class/dmi/id/chassis_vendor)
 
     fi
 
@@ -45,30 +82,14 @@ memory_info() {
 
 }
 
-# Vendor Information
-vendor_info() {
-
-    # Check if chassis_vendor returns any hardware manufacturer:
-    if [[ $( cat /sys/class/dmi/id/chassis_vendor | grep "No Enclosure") ]]; then
-
-        # If no, it means it's virtual machine:
-        vendor=$(cat /sys/class/dmi/id/sys_vendor)
-
-    else
-
-        # If yes, get chassis/hardware vendor:
-        vendor=$(cat /sys/class/dmi/id/chassis_vendor)
-
-    fi
-
-}
-
+# Disk Information
 disk_info() {
 
     # Get disk information using lsblk or df (to be implemented)
     disks="$(echo -n `df -h | grep ^/dev | awk '{print$1}' | while read a; do df -h $a | grep ^/dev | awk '{print$1","$2","$5","$6}'; done`)"
 }
 
+# Network Information
 network_info() {
 
     # Get list of listening TCP ports (IPv4 and IPv6):
@@ -97,6 +118,7 @@ network_info() {
 }
 
 # Call functions
+check_topia
 generic_os_version
 vendor_info
 cpu_info
@@ -108,10 +130,11 @@ network_info
 
 echo -e "\nFrom the left, we have the following information:\n
 * Hostname;
+* VRX Status;
 * OS Information;
 * CPU Model;
 * Number of CPU Cores;
 * Memory in MB;
 * Vendor (Hypervisor or Manufactorer).\n"
 
-echo "${hostname};${os_info};${cpu_model};${cores};${memory};${disks};tcp_v4:${tcp_v4_ports};tcp_v6:${tcp_v6_ports};${vendor};"
+echo "${hostname};${vrx_status};${os_info};${vendor};${cpu_model};${cores};${memory};${disks};tcp_v4:${tcp_v4_ports};tcp_v6:${tcp_v6_ports};"
