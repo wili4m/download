@@ -119,4 +119,4 @@ echo -e "\nFrom the left, we have the following information:\n
 * Memory in MB;
 * Vendor (Hypervisor or Manufactorer).\n"
 
-echo "${hostname};${os_info};${cpu_model};${cores};${memory};${disks};${tcp_v4_ports};${tcp_v6_ports}${vendor};"
+echo "${hostname};${os_info};${cpu_model};${cores};${memory};${disks};tcp_v4:${tcp_v4_ports};tcp_v6:${tcp_v6_ports};${vendor};"
