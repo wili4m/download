@@ -9,7 +9,7 @@ hostname=$(hostname -f)
 # Identifies OS version:
 os_release="/etc/os-release"
 
-# Check Topia/VRX status
+# Check Topia/VRX status:
 check_topia() {
 
     # Check if Topia/VRX agent is running:
@@ -17,10 +17,12 @@ check_topia() {
 
     if [[ ! -z $topia ]]; then
 
+        # If running, set VRX status as running:
         vrx_status="VRX_is_running"
 
     else
 
+        # If not running, set VRX status as not running:
         vrx_status="VRX_not_running"
 
     fi
@@ -28,14 +30,15 @@ check_topia() {
 }
 
 
-# Generic Function to get OS version
+# Generic Function to get OS version:
 generic_os_version() {
 
+    # Get OS name and version from os-release file:
     os_name="$(cat $os_release | grep -w ^NAME | sed -e "s/NAME=\"//g" -e "s/\"//g")"
     os_version="$(cat $os_release | grep -w ^VERSION | sed -e "s/VERSION=\"//g" -e "s/\"//g")"
     os_info="$os_name $os_version"
 
-    # Check if OS info is empty
+    # Check if OS info is empty:
     if [[ -z $os_info ]]; then
 
         os_info="OS not identified"
@@ -44,7 +47,7 @@ generic_os_version() {
 
 }
 
-# Vendor Information
+# Vendor Information:
 vendor_info() {
 
     # Check if chassis_vendor returns any hardware manufacturer:
@@ -62,14 +65,14 @@ vendor_info() {
 
 }
 
-# CPU Information
+# CPU Information:
 cpu_info() {
 
     cpu_model="$(cat /proc/cpuinfo | grep -m 1 'model name' | sed -e 's/model name[[:space:]]*:[[:space:]]*//g')"
     cores=$(nproc)
 }
 
-# Memory Information
+# Memory Information:
 memory_info() {
 
     # Following code just for root privileges:
@@ -82,17 +85,17 @@ memory_info() {
 
 }
 
-# Disk Information
+# Disk Information:
 disk_info() {
 
-    # Get disk information using lsblk or df (to be implemented)
+    # Get disk information using lsblk or df (to be implemented):
     disks="$(echo -n `df -h | grep ^/dev | awk '{print$1}' | while read a; do df -h $a | grep ^/dev | awk '{print$1","$2","$5","$6}'; done`)"
 }
 
-# Network Information
+# Network Information:
 network_info() {
 
-    # Get list of listening TCP ports (IPv4 and IPv6):
+    # Get list of listening TCP ports IPv4:
     if [ -e "/proc/net/tcp" ]; then
 
        got_v4_ports=$(awk 'NR>1 && $4=="0A" {split($2,a,":"); print strtonum("0x"a[2])}' /proc/net/tcp)
@@ -104,6 +107,7 @@ network_info() {
 
     fi
 
+    # Get list of listening TCP ports IPv6:
     if [ -e "/proc/net/tcp6" ]; then
 
        got_v6_ports=$(awk 'NR>1 && $4=="0A" {split($2,a,":"); print strtonum("0x"a[2])}' /proc/net/tcp6)
@@ -117,7 +121,7 @@ network_info() {
 
 }
 
-# Call functions
+# Call functions:
 check_topia
 generic_os_version
 vendor_info
@@ -126,7 +130,7 @@ memory_info
 disk_info
 network_info
 
-# Print collected information
+# Print collected information:
 
 echo -e "\nFrom the left, we have the following information:\n
 * Hostname;
