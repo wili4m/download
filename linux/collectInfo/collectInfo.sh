@@ -29,7 +29,6 @@ check_topia() {
 
 }
 
-
 # Generic Function to get OS version:
 generic_os_version() {
 
@@ -143,4 +142,5 @@ echo -e "\nFrom the left, we have the following information:\n
 * Ports TCPv4 listening;
 * Ports TCPv6 listening.\n"
 
+# Print all information in a single line separated by semicolons (CSV format):
 echo "${hostname};${vrx_status};${os_info};${vendor};${cpu_model};${cores};${memory};${disks};tcp_v4:${tcp_v4_ports};tcp_v6:${tcp_v6_ports};"
