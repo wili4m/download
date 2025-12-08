@@ -132,9 +132,11 @@ echo -e "\nFrom the left, we have the following information:\n
 * Hostname;
 * VRX Status;
 * OS Information;
+* Vendor (Hypervisor or Manufactorer)
 * CPU Model;
 * Number of CPU Cores;
 * Memory in MB;
-* Vendor (Hypervisor or Manufactorer).\n"
+* Ports TCPv4 listening;
+* Ports TCPv6 listening.\n"
 
 echo "${hostname};${vrx_status};${os_info};${vendor};${cpu_model};${cores};${memory};${disks};tcp_v4:${tcp_v4_ports};tcp_v6:${tcp_v6_ports};"
