@@ -35,19 +35,27 @@ cpu_info() {
 # Memory Information
 memory_info() {
 
-    ddrs="$(echo -n $(dmidecode -t memory | grep "Size" | grep -v "No Module Installed" | grep GB | awk '{print$2}') | sed -e 's/ / + /g')"
-    memory=$(echo $ddrs | bc)
+    # Following code just for root privileges:
+    #ddrs="$(echo -n $(dmidecode -t memory | grep "Size" | grep -v "No Module Installed" | grep GB | awk '{print$2}') | sed -e 's/ / + /g')"
+    #memory=$(echo $ddrs | bc)
+
+    # Get util memory reported by Kernel in GB with two decimal places: 
+    memory=$(echo "scale=2; $(grep MemTotal /proc/meminfo | awk '{print $2}')/1024/1024" | bc)
 
 }
 
+# Vendor Information
 vendor_info() {
 
+    # Check if chassis_vendor returns any hardware manufacturer:
     if [[ $( cat /sys/class/dmi/id/chassis_vendor | grep "No Enclosure") ]]; then
 
+        # If no, it means it's virtual machine:
         vendor=$(cat /sys/class/dmi/id/sys_vendor)
 
     else
 
+        # If yes, get chassis/hardware vendor:
         vendor=$(cat /sys/class/dmi/id/chassis_vendor)
 
     fi
