@@ -26,13 +26,23 @@ generic_os_version() {
 
 }
 
-cpu_model() {
+cpu_info() {
 
-    cpu_info="$(cat /proc/cpuinfo | grep -m 1 'model name' | sed -e 's/model name[[:space:]]*:[[:space:]]*//g')"
-
+    cpu_model="$(cat /proc/cpuinfo | grep -m 1 'model name' | sed -e 's/model name[[:space:]]*:[[:space:]]*//g')"
+    cores=$(nproc)
+    memory_info=$(free -h | grep Mem | awk '{print $2}')
 }
 
-generic_os_version
-cpu_model
+memory_info() {
 
-echo "${os_info} ; ${cpu_info}"
+    ddrs="$(echo -n $(dmidecode -t memory | grep "Size" | grep -v "No Module Installed" | grep GB | awk '{print$2}') | sed -e 's/ / + /g')"
+    memory=$(echo $ddrs | bc)
+
+}   
+
+
+generic_os_version
+cpu_info
+
+
+echo "${os_info} ; ${cpu_model}; ${cores}; ${memoery};"
