@@ -38,9 +38,6 @@ memory_info() {
     # Following code just for root privileges:
     #ddrs="$(echo -n $(dmidecode -t memory | grep "Size" | grep -v "No Module Installed" | grep GB | awk '{print$2}') | sed -e 's/ / + /g')"
     #memory=$(echo $ddrs | bc)
-
-    # Get util memory reported by Kernel in GB with two decimal places: 
-    memory=$(echo "scale=2; $(grep MemTotal /proc/meminfo | awk '{print $2}')/1024/1024" | bc)
     
     # Get util memory reported by Kernel in GB with two decimal places: 
     memory=$(free -m | grep Mem | awk '{print$2}')
