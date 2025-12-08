@@ -19,8 +19,11 @@ generic_os_version() {
 
     print $os_info
 
+    # Check if OS info is empty
     if [ -z $os_info ]; then
+
         echo "OS not identified"
+    
     fi
 
 }
@@ -28,29 +31,30 @@ generic_os_version() {
 # Checking if it's Debian or Debian Like:
 if [ -e $debian_release ]; then
 
-    # Checking if it's a Debian-Like:
+    # Check if it's a Debian-Like system
     if [ -e "$lsb_release" ]; then
 
         os_description="$(cat $lsb_release | grep -w ^DISTRIB_DESCRIPTION | sed -e "s/DISTRIB_DESCRIPTION=\"//g" -e "s/\"//g")"
 
+        # Check if OS description is not empty
         if [[ ! -z $os_description ]]; then
 
             report_os_version="$os_description"
 
         fi
 
-    else
+        else
  
-        # Checking if it's Ubuntu for the second time:
+        # Check if it's Ubuntu for the second time
         os_name=$(cat $os_release | grep -w ^NAME | sed -e "s/NAME=\"//g" -e "s/\"//g")
 
-        if [[ $(echo $os_name | grep -i ubuntu) ]]; then
+        # Check if the OS name contains Ubuntu
+        if [[ $(echo $os_name | grep -i ubuntu) ]]; then            generic_os_version
 
-            generic_os_version
-
+        # If it's not Ubuntu, it's a Debian distribution
    	 else
 
-            # However, if it's not a Ubuntu, it's a Debian, so we'll collect just the release:
+            # Collect just the Debian release information
             report_os_version=$(cat $debian_release)
 
         fi
@@ -59,36 +63,38 @@ if [ -e $debian_release ]; then
 
 else
 
-    # Verifies if it's a CentOS:
+    # Check if it's a CentOS system
     if [ -e $centos_release ]; then
 
-        # Collect the release:
+        # Collect the CentOS release information
         report_os_version=$(cat $centos_release)
 
-    # Oracle Linux
+    # Check if it's an Oracle Linux system
     elif [ -e $ol_release ]; then
 
         report_os_version=$(cat $ol_release)
 
-    # RHEL:
+    # Check if it's a Red Hat Enterprise Linux system
     elif [ -e $rhel_release ]; then
 
         report_os_version=$(cat $rhel_release)
 
+    # If none of the above OS types were detected
     else
 
-        # But if it's neigther, we'll just collect Name and Version:
+        # Collect generic OS Name and Version information
         generic_os_version
 
     fi
 
 fi
 
-# Se o SO nao pode ser identificado, printa saida do comando uname -o
+# Check if OS version information was successfully collected
 if [[ ! -z $report_os_version ]]; then
 
     echo $report_os_version
 
+# If OS information was not collected, use generic method
 else
         generic_os_version
 
