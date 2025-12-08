@@ -97,7 +97,7 @@ network_info() {
 
     # Convert space-separated ports into comma-separated:
     tcp_v4_ports=$(echo $got_v4_ports | sed -e 's/ /,/g') 
-    tcp_v6_ports=$(echo $got_v4_ports | sed -e 's/ /,/g') 
+    tcp_v6_ports=$(echo $got_v6_ports | sed -e 's/ /,/g') 
 
 }
 
