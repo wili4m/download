@@ -73,31 +73,29 @@ disk_info() {
 }
 
 network_info() {
+
     # Get list of listening TCP ports (IPv4 and IPv6):
-
-    # Using netstat:
-    if [ -e "/usr/bin/netstat" ]; then
-
-        got_v4_ports=$(netstat -tuln4 | grep tcp | awk '{print$4}' | cut -d: -f2)
-        got_v6_ports=$(netstat -tuln6 | grep tcp | awk '{print$4}' | cut -d: -f2)
-
-    # Using ss:
-    elif [ -e "/usr/bin/ss" ]; then
-
-        got_v4_ports=$(ss -tuln4p | grep tcp | awk '{print$5}' | cut -d: -f2)
-        got_v6_ports=$(ss -tuln6 | grep tcp | awk '{print$4}' | cut -d: -f2)
-
-    # Using /proc/net/tcp and /proc/net/tcp6:
-    else
+    if [ -e "/proc/net/tcp" ]; then
 
        got_v4_ports=$(awk 'NR>1 && $4=="0A" {split($2,a,":"); print strtonum("0x"a[2])}' /proc/net/tcp)
-       got_v6_ports=$(awk 'NR>1 && $4=="0A" {split($2,a,":"); print strtonum("0x"a[2])}' /proc/net/tcp6)
+       tcp_v4_ports=$(echo $got_v4_ports | sed -e 's/ /,/g') 
+
+    else
+
+        tcp_v4_ports="none"
 
     fi
 
-    # Convert space-separated ports into comma-separated:
-    tcp_v4_ports=$(echo $got_v4_ports | sed -e 's/ /,/g') 
-    tcp_v6_ports=$(echo $got_v6_ports | sed -e 's/ /,/g') 
+    if [ -e "/proc/net/tcp6" ]; then
+
+       got_v6_ports=$(awk 'NR>1 && $4=="0A" {split($2,a,":"); print strtonum("0x"a[2])}' /proc/net/tcp6)
+       tcp_v6_ports=$(echo $got_v6_ports | sed -e 's/ /,/g')
+
+    else
+
+        tcp_v6_ports="none"
+
+    fi
 
 }
 
