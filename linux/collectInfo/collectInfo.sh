@@ -30,7 +30,6 @@ cpu_info() {
 
     cpu_model="$(cat /proc/cpuinfo | grep -m 1 'model name' | sed -e 's/model name[[:space:]]*:[[:space:]]*//g')"
     cores=$(nproc)
-    memory_info=$(free -h | grep Mem | awk '{print $2}')
 }
 
 # Memory Information
@@ -62,4 +61,4 @@ memory_info
 vendor_info
 
 # Print collected information
-echo "${hostname} ; ${os_info} ; ${cpu_model}; ${cores}; ${memory}; ${vendor};"
+echo "${hostname};${os_info};${cpu_model};${cores};${memory};${vendor};"
