@@ -94,25 +94,33 @@ disk_info() {
 # Network Information:
 network_info() {
 
-    # Get list of listening TCP ports IPv4:
-    if [ -e "/proc/net/tcp" ]; then
+    # Using netstat:
+    if [ -e "/usr/bin/netstat" ]; then
 
-       got_v4_ports=$(awk 'NR>1 && $4=="0A" {split($2,a,":"); print strtonum("0x"a[2])}' /proc/net/tcp)
-       tcp_v4_ports=$(echo $got_v4_ports | sed -e 's/ /,/g') 
+        got_v4_ports=$(netstat -tuln4 | grep tcp | awk '{print$4}' | cut -d: -f2)
+        got_v6_ports=$(netstat -tuln6 | grep tcp | awk '{print$4}' | cut -d: -f2)
 
+    # Using ss:
     else
+
+        got_v4_ports=$(ss -tuln4 | grep tcp | awk '{print$5}' | cut -d: -f2)
+        got_v6_ports=$(ss -tuln6 | grep tcp | awk '{print$4}' | cut -d: -f2)
+
+    fi
+
+    # Format ports as comma-separated values:
+    tcp_v4_ports=$(echo $got_v4_ports | sed -e 's/ /,/g')
+    tcp_v6_ports=$(echo $got_v6_ports | sed -e 's/ /,/g')
+
+    # If no ports found, set to "none":
+    if [ -z tcp_v4_ports ]; then
 
         tcp_v4_ports="none"
 
     fi
 
-    # Get list of listening TCP ports IPv6:
-    if [ -e "/proc/net/tcp6" ]; then
-
-       got_v6_ports=$(awk 'NR>1 && $4=="0A" {split($2,a,":"); print strtonum("0x"a[2])}' /proc/net/tcp6)
-       tcp_v6_ports=$(echo $got_v6_ports | sed -e 's/ /,/g')
-
-    else
+    # If no ports found, set to "none":
+    if [ -z tcp_v6_ports ]; then
 
         tcp_v6_ports="none"
 
@@ -130,7 +138,6 @@ disk_info
 network_info
 
 # Print collected information:
-
 echo -e "\nFrom the left, we have the following information:\n
 * Hostname;
 * VRX Status;
