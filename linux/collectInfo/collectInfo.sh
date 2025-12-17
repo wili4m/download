@@ -9,6 +9,9 @@ hostname=$(hostname -f)
 # Identifies OS version:
 os_release="/etc/os-release"
 
+# Get current user:
+whoami=$(whoami)
+
 # Check Topia/VRX status:
 check_topia() {
 
@@ -150,4 +153,4 @@ echo -e "\nFrom the left, we have the following information:\n
 * Ports TCPv6 listening.\n"
 
 # Print all information in a single line separated by semicolons (CSV format):
-echo "${hostname};${vrx_status};${os_info};${vendor};${cpu_model};${cores};${memory};${disks};tcp_v4:${tcp_v4_ports};tcp_v6:${tcp_v6_ports};"
+echo "${hostname};${vrx_status};${os_info};${vendor};${cpu_model};${cores};${memory};${disks};tcp_v4:${tcp_v4_ports};tcp_v6:${tcp_v6_ports};${whoami}"
