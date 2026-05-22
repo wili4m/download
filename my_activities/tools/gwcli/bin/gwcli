@@ -1,0 +1,205 @@
+#!/bin/bash
+
+# Script by Wiliam Freitas
+# Description: Connect to various gateways with predefined credentials.
+
+# Backlog:
+# Adicionar credenciais em sqlite
+# Adicionar feature para atualizar credenciais
+# Adicionar feature para adicionar novos servidores
+
+# Define cores para output de mensagens:
+colorCyan='\033[0;36m'
+colorPink='\033[38;5;205m'
+colorGreenLight='\033[1;32m'
+colorRed='\033[0;31m'
+colorYlw='\033[0;33m'
+colorWhite='\033[1;37m'
+
+# Remove cor:
+nocolor='\033[0m'
+
+# Função de ajuda:
+help() {
+
+    clear
+    echo -e "${colorCyan}Gateways CLI${nocolor}"
+    echo -e "\nGateways connection tool for connecting to Linux gateways with predefined credentials."
+
+    echo -e "\nOptions:\n"
+    echo -e "  ${colorYlw}gwcli${nocolor}                Displays prompt with menu for server selection and SSH connection using sshpass."
+    echo -e "  ${colorYlw}gwcli --help, -h${nocolor}     Displays this help message."
+    echo -e "  ${colorYlw}gwcli --verbose, -v${nocolor}  Displays connection details before connecting to the server.\n"
+
+    echo -e "Setup:"
+
+    echo -e "\n${colorCyan}Configuration:${nocolor} It is necessary to create the required environment variables. They are:${nocolor}\n"
+
+    echo -e "  ${colorPink}_userGlobal=''${nocolor}       - User for AD Global"
+    echo -e "  ${colorPink}_passGlobal=''${nocolor}       - Password for AD Global"
+    echo -e "  ${colorPink}_userBREquinix=''${nocolor}    - User for AD BR-Equinix"
+    echo -e "  ${colorPink}_passBREquinix=''${nocolor}    - Password for AD BR-Equinix"
+    echo -e "  ${colorPink}_userNA=''${nocolor}           - User for AD North America"
+    echo -e "  ${colorPink}_passNA=''${nocolor}           - Password for AD North America\n"
+
+    echo -e "${colorCyan}Security Notes:${nocolor}"
+    echo -e "1 - Define the environment variables in the ${colorYlw}.bashrc${nocolor} file to avoid exposing credentials."
+    echo -e "2 - The variables must be defined with single quotes to avoid incompatibilities with special characters.\n"
+
+    echo -e "${colorCyan}Requirements:${nocolor}"
+    echo -e "1 - The ${colorYlw}sshpass${nocolor} command must be installed on the system."
+    echo -e "2 - Installation on Ubuntu/Debian: ${colorYlw}sudo apt install sshpass${nocolor}"
+    echo -e "3 - Installation on Fedora/CentOS/Rocky: ${colorYlw}sudo yum install sshpass${nocolor}\n"
+
+    echo -e "${colorCyan}Tip:${nocolor}\nMove the script to ${colorYlw}/usr/bin/${nocolor} or ${colorYlw}/usr/local/bin/${nocolor}. As such, you will only need to run ${colorYlw}gwcli${nocolor} to execute it.\n"
+    exit 0
+
+}
+
+#
+# Ajuda:
+#
+
+# Exibe ajuda se o argumento --help ou -h for fornecido:
+if [ ! -z $1 ]; then
+
+    if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
+
+        help
+
+    elif [ "$1" == "--verbose" ] || [ "$1" == "-v" ];  then
+
+        verbose=true
+
+    else
+
+        echo -e "${colorRed}Option invalid${nocolor}.\n"
+        exit 1
+
+    fi
+
+fi
+
+#
+# Validacoes:
+#
+
+# Verifica se as variáveis de ambiente necessárias estão definidas:
+if [ -z "${_userGlobal}" ] || [ -z "${_userBREquinix}" ] || [ -z "${_userNA}" ]; then
+    echo -e "${colorRed}Error: One or more environment variables are not defined.${nocolor}"
+    echo -e "Check if _userGlobal, _passGlobal, _userBREquinix, _passBREquinix, _userNA, and _passNA are set."
+    echo -e "Run the command ${colorYlw}env${nocolor} to list your environment variables.\n"
+    exit 1
+fi
+
+# Verifica se o sshpass está instalado:
+if [ $(which sshpass > /dev/null; echo $?) -ne 0 ]; then
+    echo -e "${colorRed}Error: The command${nocolor} ${colorYlw}sshpass${nocolor} ${colorRed}was not detected.${nocolor}"
+    echo -e "Make sure it is installed or install it using the command ${colorYlw}sudo apt install sshpass${nocolor}.\n"
+    exit 1
+fi
+
+# Array de servidores do AD Global:
+server1=("parj1.corp.equinix.com" "22" "${_userGlobal}" "${_passGlobal}" "Hostname:" "rj1lxjh01" "AD:" "Global")
+server2=("rj2lxjh01.corp.equinix.com" "22" "${_userGlobal}" "${_passGlobal}" "Hostname:" "rj2lxjh01" "AD:" "Global")
+server3=("sp1lxjh01.corp.equinix.com" "22" "${_userGlobal}" "${_passGlobal}" "Hostname:" "sp1lxjh01" "AD:" "Global")
+server4=("pasp2.corp.equinix.com" "22" "${_userGlobal}" "${_passGlobal}" "Hostname:" "sp2lxjh01" "AD:" "Global")
+# Array de servidores do AD BR-Equinix:
+server5=("palnxrj2.corp.equinix.com" "22" "${_userBREquinix}" "${_passBREquinix}" "Hostname:" "eqix-msh-pa-rj2" "AD:" "BR-Equinix")
+server6=("palnxsp3.corp.equinix.com" "22" "${_userBREquinix}" "${_passBREquinix}" "Hostname:" "msh-pa-01-sp3" "AD:" "BR-Equinix")
+server7=("pa-lnx-csc-sp3-01.equinix.com.br" "11169" "${_userBREquinix}" "${_passBREquinix}" "Hostname:" "pa-lnx-csc-sp3-01" "AD:" "BR-Equinix")
+server8=("amer-palnx-rj2.equinix.com.br" "11167" "${_userBREquinix}" "${_passBREquinix}" "Hostname:" "amer-palnx-rj2" "AD:" "BR-Equinix")
+# Array de servidores do AD North America:
+server9=("da6-gms-jmp-01.na.equinixms.com" "22" "${_userNA}" "${_passNA}" "Hostname:" "da6-gms-jmp-01" "AD:" "North America")
+server10=("ch3-gms-jmp-01.na.equinixms.com" "22" "${_userNA}" "${_passNA}" "Hostname:" "ch3-gms-jmp-01" "AD:" "North America")
+server11=("ch3-gms-jmp-02.na.equinixms.com" "22" "${_userNA}" "${_passNA}" "Hostname:" "ch3-gms-jmp-02" "AD:" "North America")
+server12=("pazabbixrj.equinix.com.br" "22" "${_userLocalZabbix}" "${_passLocalZabbix}" "Hostname:" "pazabbix" "AD:" "Local User")
+
+# Array contendo todos os servidores:
+servers=(
+    server1[@]
+    server2[@]
+    server3[@]
+    server4[@]
+    server5[@]
+    server6[@]
+    server7[@]
+    server8[@]
+    server9[@]
+    server10[@]
+    server11[@]
+    server12[@]
+)
+
+clear
+
+echo -e "${colorCyan}Gateways CLI${nocolor}"
+echo -e "\nDisplaying available server options:\n"
+
+if [[ $verbose == "true" ]]; then
+    echo -e "${colorYlw}Verbose mode enabled.${nocolor} ${colorWhite}Connection details will be displayed after server selection.${nocolor}\n"
+fi
+
+printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  1 "${server1[0]}"  "${server1[4]}"  "${server1[5]}" "${server1[6]}" "${server1[7]}"
+printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  2 "${server2[0]}"  "${server2[4]}"  "${server2[5]}" "${server2[6]}" "${server2[7]}"
+printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  3 "${server3[0]}"  "${server3[4]}"  "${server3[5]}" "${server3[6]}" "${server3[7]}"
+printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  4 "${server4[0]}"  "${server4[4]}"  "${server4[5]}" "${server4[6]}" "${server4[7]}"
+printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  5 "${server5[0]}"  "${server5[4]}"  "${server5[5]}" "${server5[6]}" "${server5[7]}"
+printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  6 "${server6[0]}"  "${server6[4]}"  "${server6[5]}" "${server6[6]}" "${server6[7]}"
+printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  7 "${server7[0]}"  "${server7[4]}"  "${server7[5]}" "${server7[6]}" "${server7[7]}"
+printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  8 "${server8[0]}"  "${server8[4]}"  "${server8[5]}" "${server8[6]}" "${server8[7]}"
+printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  9 "${server9[0]}"  "${server9[4]}"  "${server9[5]}" "${server9[6]}" "${server9[7]}"
+printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  10 "${server10[0]}"  "${server10[4]}"  "${server10[5]}" "${server10[6]}" "${server10[7]}"
+printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  11 "${server11[0]}"  "${server11[4]}"  "${server11[5]}" "${server11[6]}" "${server11[7]}"
+printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  12 "${server12[0]}"  "${server12[4]}"  "${server12[5]}" "${server12[6]}" "${server12[7]}"
+
+# Lê a opção selecionada pelo usuário:
+echo -en "\nSelect the server number (1-12):${colorYlw} "
+read selectedOption
+echo -e "${nocolor}"
+
+# Calcula o índice do array correspondente ao servidor selecionado:
+index=$((selectedOption-1))
+
+# Verifica se a opção é válida:
+if [ $index -lt "0" ] || [ $index -gt "12" ]; then
+
+    echo -e "${colorRed}Invalid option. Exiting script.${nocolor}\n"
+    exit 1
+
+else
+
+    # Espande o array selecionado para a variável selectedServer:
+    selectedServer=("${!servers[index]}")
+
+    # Atribui valores do array escolhido:
+    _remotehost="${selectedServer[0]}"
+    _remoteport="${selectedServer[1]}"
+    _remoteuser="${selectedServer[2]}"
+    _remotepass="${selectedServer[3]}"
+    _remotesssd="${selectedServer[7]}"
+
+    # Mensagem de conexão:
+    echo -e "${colorWhite}Connecting to server${nocolor} ${colorGreenLight}${_remotehost}:${_remoteport}${nocolor} ${colorWhite}using credentials of${nocolor} ${colorGreenLight}${_remotesssd}${nocolor}.\n"
+
+    if [ "$verbose" = true ]; then
+
+        echo -e "${colorYlw}Connection details:${nocolor}\n"
+        echo -e "  Server:       ${colorPink}${_remotehost}${nocolor}"
+        echo -e "  Credential:   ${colorPink}${_remotesssd} ${nocolor}"
+        echo -e "  SSH Port:     ${colorPink}${_remoteport} ${nocolor}"
+        echo -e "  User:         ${colorPink}${_remoteuser}${nocolor}"
+        echo -e "  Password:     ${colorPink}********${nocolor}\n"
+
+        sshpass -p "${_remotepass}" ssh -vvv -p ${_remoteport} -o StrictHostKeyChecking=no "${_remoteuser}@${_remotehost}"
+        exit
+
+    else
+
+        # Conexão SSH:
+        sshpass -p "${_remotepass}" ssh -p ${_remoteport} -o StrictHostKeyChecking=no "${_remoteuser}@${_remotehost}"
+        exit
+
+    fi
+
+fi

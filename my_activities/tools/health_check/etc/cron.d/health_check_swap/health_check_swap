@@ -1,0 +1,5 @@
+SHELL=/bin/bash
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+MAILTO=root
+# GMT=03:00. BRT=00:00.
+00 03 * * * root /usr/local/sbin/equinix/health_check_swap.sh > /dev/null
