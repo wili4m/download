@@ -52,6 +52,21 @@ modal_keep_temporary_files=true
 # Determine if the server will be rebooted after Kernel update.
 modal_reboot_after_update=false
 
+# Determine if the tool will register logs on datasource.
+modal_register_on_datasource=false
+
+# If the modal is set to true, define the database connection parameters:
+if [ "$modal_register_on_datasource" = true ]; then
+
+    DB_HOST="192.168.0.212"
+    DB_PORT="3306"
+    DB_USER="grafana"
+    DB_PASS="fuck@fuck@21"
+    DB_NAME="grafana"
+
+fi
+
+
 # Define a path to store temporary files and the evidences
 files_path="/root"
 
@@ -133,6 +148,16 @@ fi
 
 }
 
+func_register_to_datasource() {
+
+
+    if [ "$modal_register_on_datasource" = true ]; then
+            
+            sql_column_excludes="updates_held"
+            sql_value_excludes="$excludes"
+            
+}
+
 func_pkgs_to_avoid_update() {
 
     # Collect list of packages to avoid updateing (hold):
@@ -159,6 +184,11 @@ func_pkgs_to_avoid_update() {
             log_level="INFO"
             log_msg="Found packages to avoid updates: $excludes"
             func_log "$log_level" "$log_msg" 
+
+            # # Register list of packages to be held on datasource:
+            # sql_column="updates_held"
+            # sql_value="$excludes"
+            # func_log_to_sql "$sql_column" "$sql_value"
 
             # Loop through each package in the list of packages to be held and check if it has a security update available:
             for pkg in $excludes ; do

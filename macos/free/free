@@ -1,0 +1,92 @@
+#!/bin/bash
+
+UNIT="KB"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -b|--bytes)
+            UNIT="B"
+            shift
+            ;;
+        -k|--kibi)
+            UNIT="KB"
+            shift
+            ;;
+        -m|--mebi)
+            UNIT="MB"
+            shift
+            ;;
+        -g|--gibi)
+            UNIT="GB"
+            shift
+            ;;
+        -h|--human)
+            UNIT="HUMAN"
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+TOTAL_BYTES=$(sysctl -n hw.memsize)
+
+VMSTAT=$(vm_stat)
+
+PAGE_SIZE=$(pagesize)
+
+get_pages() {
+    echo "$VMSTAT" | grep "$1" | awk '{gsub("\\.","",$NF); print $NF}'
+}
+
+FREE_PAGES=$(get_pages "Pages free")
+SPEC_PAGES=$(get_pages "Pages speculative")
+ACTIVE_PAGES=$(get_pages "Pages active")
+INACTIVE_PAGES=$(get_pages "Pages inactive")
+WIRED_PAGES=$(get_pages "Pages wired down")
+
+FREE_BYTES=$(( (FREE_PAGES + SPEC_PAGES) * PAGE_SIZE ))
+USED_BYTES=$(( TOTAL_BYTES - FREE_BYTES ))
+AVAILABLE_BYTES=$(( FREE_BYTES + (INACTIVE_PAGES * PAGE_SIZE) ))
+
+convert() {
+    local bytes=$1
+
+    case "$UNIT" in
+        B)
+            echo "$bytes"
+            ;;
+        KB)
+            echo $(( bytes / 1024 ))
+            ;;
+        MB)
+            echo $(( bytes / 1024 / 1024 ))
+            ;;
+        GB)
+            echo $(( bytes / 1024 / 1024 / 1024 ))
+            ;;
+        HUMAN)
+            awk -v b="$bytes" '
+            function human(x) {
+                s="B KB MB GB TB"
+                split(s,a)
+                i=1
+                while (x>=1024 && i<5) {
+                    x/=1024
+                    i++
+                }
+                return sprintf("%.1f%s",x,a[i])
+            }
+            BEGIN { print human(b) }'
+            ;;
+    esac
+}
+
+TOTAL=$(convert "$TOTAL_BYTES")
+USED=$(convert "$USED_BYTES")
+FREE=$(convert "$FREE_BYTES")
+AVAILABLE=$(convert "$AVAILABLE_BYTES")
+
+printf "%-12s %12s %12s %12s %12s\n" "" total used free available
+printf "%-12s %12s %12s %12s %12s\n" "Mem:" "$TOTAL" "$USED" "$FREE" "$AVAILABLE"
