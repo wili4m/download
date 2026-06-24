@@ -1,0 +1,307 @@
+#!/bin/bash
+
+# Script by Wiliam Freitas
+# Description: Connect to various gateways with predefined credentials.
+
+prompt_color=true
+
+# Determina se a autenticacao é por chave ou senha:
+password=false
+
+# Chave SSH:
+ssh_key="~/.ssh/id_rsa"
+
+# Função de ajuda:
+help() {
+
+    clear
+    echo -e "${colorCyan}Gateways CLI${nocolor}"
+    echo -e "\nGateways connection tool for connecting to Linux gateways with predefined credentials."
+
+    echo -e "\nOptions:\n"
+    echo -e "  ${colorYlw}gwcli${nocolor}                Displays prompt with menu for server selection and SSH connection using sshpass."
+    echo -e "  ${colorYlw}gwcli --help, -h${nocolor}     Displays this help message."
+    echo -e "  ${colorYlw}gwcli -l${nocolor}             List servers."
+    echo -e "  ${colorYlw}gwcli -nc${nocolor}            No colors."
+    echo -e "  ${colorYlw}gwcli -k${nocolor}             Uses SSH Key to connect (must be informed on the code)."
+    echo -e "  ${colorYlw}gwcli -p${nocolor}             Uses password authentication (must be configured on environment variables)."
+    echo -e "  ${colorYlw}gwcli --verbose, -v${nocolor}  Displays connection details before connecting to the server.\n"
+
+    echo -e "Setup for usage with password:"
+
+    echo -e "\n${colorCyan}Configuration:${nocolor} It is necessary to create the required environment variables. They are:${nocolor}\n"
+
+    echo -e "  ${colorPink}_userGlobal=''${nocolor}       - User for AD Global"
+    echo -e "  ${colorPink}_passGlobal=''${nocolor}       - Password for AD Global"
+    echo -e "  ${colorPink}_userBREquinix=''${nocolor}    - User for AD BR-Equinix"
+    echo -e "  ${colorPink}_passBREquinix=''${nocolor}    - Password for AD BR-Equinix"
+    echo -e "  ${colorPink}_userNA=''${nocolor}           - User for AD North America"
+    echo -e "  ${colorPink}_passNA=''${nocolor}           - Password for AD North America\n"
+
+    echo -e "${colorCyan}Security Notes:${nocolor}"
+    echo -e "1 - Define the environment variables in the ${colorYlw}.bashrc${nocolor} file to avoid exposing credentials."
+    echo -e "2 - The variables must be defined with single quotes to avoid incompatibilities with special characters.\n"
+
+    echo -e "${colorCyan}Requirements:${nocolor}"
+    echo -e "1 - The ${colorYlw}sshpass${nocolor} command must be installed on the system."
+    echo -e "2 - Installation on Ubuntu/Debian: ${colorYlw}sudo apt install sshpass${nocolor}"
+    echo -e "3 - Installation on Fedora/CentOS/Rocky: ${colorYlw}sudo yum install sshpass${nocolor}\n"
+
+    echo -e "${colorCyan}Tip:${nocolor}\nMove the script to ${colorYlw}/usr/bin/${nocolor} or ${colorYlw}/usr/local/bin/${nocolor}. As such, you will only need to run ${colorYlw}gwcli${nocolor} to execute it.\n"
+    exit 0
+
+}
+
+function print_servers() {
+
+    local only_print="$1"
+
+    # If parameter "-l" has been received, only list the servers:
+    if [ "$only_print" = true ]; then
+
+        printf "%s %s %s %s\n" "${server1[0]}" "${server1[1]}" "${server1[5]}" "${server1[7]}"
+        printf "%s %s %s %s\n" "${server2[0]}" "${server2[1]}" "${server2[5]}" "${server2[7]}"
+        printf "%s %s %s %s\n" "${server3[0]}" "${server3[1]}" "${server3[5]}" "${server3[7]}"
+        printf "%s %s %s %s\n" "${server4[0]}" "${server4[1]}" "${server4[5]}" "${server4[7]}"
+        printf "%s %s %s %s\n" "${server5[0]}" "${server5[1]}" "${server5[5]}" "${server5[7]}"
+        printf "%s %s %s %s\n" "${server6[0]}" "${server6[1]}" "${server6[5]}" "${server6[7]}"
+        printf "%s %s %s %s\n" "${server7[0]}" "${server7[1]}" "${server7[5]}" "${server7[7]}"
+        printf "%s %s %s %s\n" "${server8[0]}" "${server8[1]}" "${server8[5]}" "${server8[7]}"
+        printf "%s %s %s %s\n" "${server9[0]}" "${server9[1]}" "${server9[5]}" "${server9[7]}"
+        printf "%s %s %s %s\n" "${server10[0]}" "${server10[1]}" "${server10[5]}" "${server10[7]}"
+        printf "%s %s %s %s\n" "${server11[0]}" "${server11[1]}" "${server11[5]}" "${server11[7]}"
+        printf "%s %s %s %s\n" "${server12[0]}" "${server12[1]}" "${server12[5]}" "${server12[7]}"
+        echo
+        exit 1
+
+    # If parameter "-l" has not been passed, display the servers options:
+    else
+
+        printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  1 "${server1[0]}"  "${server1[4]}"  "${server1[5]}" "${server1[6]}" "${server1[7]}"
+        printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  2 "${server2[0]}"  "${server2[4]}"  "${server2[5]}" "${server2[6]}" "${server2[7]}"
+        printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  3 "${server3[0]}"  "${server3[4]}"  "${server3[5]}" "${server3[6]}" "${server3[7]}"
+        printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  4 "${server4[0]}"  "${server4[4]}"  "${server4[5]}" "${server4[6]}" "${server4[7]}"
+        printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  5 "${server5[0]}"  "${server5[4]}"  "${server5[5]}" "${server5[6]}" "${server5[7]}"
+        printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  6 "${server6[0]}"  "${server6[4]}"  "${server6[5]}" "${server6[6]}" "${server6[7]}"
+        printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  7 "${server7[0]}"  "${server7[4]}"  "${server7[5]}" "${server7[6]}" "${server7[7]}"
+        printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  8 "${server8[0]}"  "${server8[4]}"  "${server8[5]}" "${server8[6]}" "${server8[7]}"
+        printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  9 "${server9[0]}"  "${server9[4]}"  "${server9[5]}" "${server9[6]}" "${server9[7]}"
+        printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  10 "${server10[0]}"  "${server10[4]}"  "${server10[5]}" "${server10[6]}" "${server10[7]}"
+        printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  11 "${server11[0]}"  "${server11[4]}"  "${server11[5]}" "${server11[6]}" "${server11[7]}"
+        printf "${colorGreenLight}%02d:${nocolor} ${colorWhite}%-34s${nocolor} ${colorGreenLight}%-08s${nocolor} ${colorWhite}%-19s${nocolor} ${colorGreenLight}%s${nocolor} ${colorWhite}%-1s\n${nocolor}"  12 "${server12[0]}"  "${server12[4]}"  "${server12[5]}" "${server12[6]}" "${server12[7]}"
+
+    fi
+
+}
+
+# Check if parameters has been received:
+while [ $# -gt 0 ]; do
+    case $1 in
+      # Print help:
+      -h|-H|--help)
+        help
+      ;;
+
+      # Connect to the server using verbose mode
+      --verbose|-v)
+        verbose=true
+      ;;
+
+      # Use SSH Key file to authenticate:
+      -k)
+        password=false
+        auth_method="SSH Key"
+      ;;
+
+      # Use Password to authenticate:
+      -p)
+        password=true
+        auth_method="Password"
+      ;;
+
+      # No color on prompt:
+      -nc)
+        prompt_color=false
+      ;;
+
+      # Only list the servers and their informations:
+      -l|-L)
+        print_servers
+        only_print=true
+      ;;
+
+      # Invalid options:
+      *)
+        echo -e "${colorRed}Option invalid${nocolor}.\n"
+        exit 1
+      ;;
+
+    esac
+
+    shift
+
+done
+
+# Determine colors on output. Works well on dark backgrounds:
+if [ $prompt_color = true ]; then
+
+    # Define cores para output de mensagens:
+    colorCyan='\033[0;36m'
+    colorPink='\033[38;5;205m'
+    colorGreenLight='\033[1;32m'
+    colorRed='\033[0;31m'
+    colorYlw='\033[0;33m'
+    colorWhite='\033[1;37m'
+    nocolor='\033[0m'
+
+fi
+
+
+#
+# Validations:
+#
+
+# Check if password authentication is enabled:
+if [ "$password" = true ]; then
+
+    # If yes, check if user's variables is enabled:
+    if [ -z "${_userGlobal}" ] || [ -z "${_userBREquinix}" ] || [ -z "${_userNA}" ]; then
+        echo -e "${colorRed}Error: One or more environment variables are not defined.${nocolor}"
+        echo -e "Check if _userGlobal, _passGlobal, _userBREquinix, _passBREquinix, _userNA, and _passNA are set."
+    echo -e "Run the command ${colorYlw}env${nocolor} to list your environment variables.\n"
+    exit 1
+    fi
+
+    # Check if sshpass is installed:
+    if [ $(which sshpass > /dev/null; echo $?) -ne 0 ]; then
+        echo -e "${colorRed}Error: The command${nocolor} ${colorYlw}sshpass${nocolor} ${colorRed}was not detected.${nocolor}"
+        echo -e "Make sure it is installed or install it using the command ${colorYlw}sudo apt install sshpass${nocolor}.\n"
+        exit 1
+    fi
+
+fi
+
+# Global servers array:
+server1=("parj1.corp.equinix.com" "22" "${_userGlobal}" "${_passGlobal}" "Hostname:" "rj1lxjh01" "AD:" "Global")
+server2=("parj2.corp.equinix.com" "22" "${_userGlobal}" "${_passGlobal}" "Hostname:" "rj2lxjh01" "AD:" "Global")
+server3=("pasp1.corp.equinix.com" "22" "${_userGlobal}" "${_passGlobal}" "Hostname:" "sp1lxjh01" "AD:" "Global")
+server4=("pasp2.corp.equinix.com" "22" "${_userGlobal}" "${_passGlobal}" "Hostname:" "sp2lxjh01" "AD:" "Global")
+# Br-Equinix-Ms servers array:
+server5=("palnxrj2.corp.equinix.com" "22" "${_userBREquinix}" "${_passBREquinix}" "Hostname:" "eqix-msh-pa-rj2" "AD:" "BR-Equinix")
+server6=("palnxsp3.corp.equinix.com" "22" "${_userBREquinix}" "${_passBREquinix}" "Hostname:" "msh-pa-01-sp3" "AD:" "BR-Equinix")
+server7=("pa-lnx-csc-sp3-01.equinix.com.br" "11169" "${_userBREquinix}" "${_passBREquinix}" "Hostname:" "pa-lnx-csc-sp3-01" "AD:" "BR-Equinix")
+server8=("amer-palnx-rj2.equinix.com.br" "11167" "${_userBREquinix}" "${_passBREquinix}" "Hostname:" "amer-palnx-rj2" "AD:" "BR-Equinix")
+# North America servers array:
+server9=("da6-gms-jmp-01.na.equinixms.com" "22" "${_userNA}" "${_passNA}" "Hostname:" "da6-gms-jmp-01" "AD:" "North America")
+server10=("ch3-gms-jmp-01.na.equinixms.com" "22" "${_userNA}" "${_passNA}" "Hostname:" "ch3-gms-jmp-01" "AD:" "North America")
+server11=("ch3-gms-jmp-02.na.equinixms.com" "22" "${_userNA}" "${_passNA}" "Hostname:" "ch3-gms-jmp-02" "AD:" "North America")
+# Zabbix server array:
+server12=("pazabbixrj.equinix.com.br" "22" "${_userLocalZabbix}" "${_passLocalZabbix}" "Hostname:" "pazabbix" "AD:" "Local User")
+
+# Server's array:
+servers=(
+    server1[@]
+    server2[@]
+    server3[@]
+    server4[@]
+    server5[@]
+    server6[@]
+    server7[@]
+    server8[@]
+    server9[@]
+    server10[@]
+    server11[@]
+    server12[@]
+)
+
+#
+# The Script starts here:
+#
+
+clear
+
+# Print welcome message:
+echo -e "${colorCyan}Gateways CLI${nocolor}"
+echo -e "\nDisplaying available server options:\n"
+
+# Verifies if verbose is enable to display a message:
+if [[ $verbose == "true" ]]; then
+    echo -e "${colorYlw}Verbose mode enabled.${nocolor} ${colorWhite}Connection details will be displayed after server selection.${nocolor}\n"
+fi
+
+# Print servers. If "-l" parameter has been informed, only print the servers list:
+print_servers "$only_print"
+
+# Display prompt to select the server numbert:
+echo -en "\nSelect the server number (1-12):${colorYlw} "
+read selectedOption
+echo -e "${nocolor}"
+
+# Select the server array:
+index=$((selectedOption-1))
+
+# Check if the number selected corresponds to a existing server:
+if [ $index -lt "0" ] || [ $index -gt "11" ]; then
+
+    # If not:
+    echo -e "${colorRed}Invalid option. Exiting script.${nocolor}\n"
+    exit 1
+
+else
+
+    # If corresponds, assembly the array information to the variable selectedServer:
+    selectedServer=("${!servers[index]}")
+
+    # Expands the variable to load data on the variables:
+    _remotehost="${selectedServer[0]}"
+    _remoteport="${selectedServer[1]}"
+    _remoteuser="${selectedServer[2]}"
+    _remotepass="${selectedServer[3]}"
+    _remotesssd="${selectedServer[7]}"
+
+    # Connection message:
+    echo -e "${colorWhite}Connecting to server${nocolor} ${colorGreenLight}${_remotehost}:${_remoteport}${nocolor} ${colorWhite}using credentials ($auth_method) of${nocolor} ${colorGreenLight}${_remotesssd}${nocolor}.\n"
+
+    # If verbose is enabled, display connection details:
+    if [ "$verbose" = true ]; then
+
+        echo -e "${colorYlw}Connection details:${nocolor}\n"
+        echo -e "  Server:       ${colorPink}${_remotehost}${nocolor}"
+        echo -e "  Credential:   ${colorPink}${_remotesssd} ${nocolor}"
+        echo -e "  SSH Port:     ${colorPink}${_remoteport} ${nocolor}"
+        echo -e "  User:         ${colorPink}${_remoteuser}${nocolor}"
+        echo -e "  Method:       ${colorPink}${auth_method}${nocolor}\n"
+
+        # Connects using password and verbose mode:
+        if [ "$password" = true ]; then
+
+            sshpass -p "${_remotepass}" ssh -vvv -p ${_remoteport} -o StrictHostKeyChecking=no "${_remoteuser}@${_remotehost}"
+            exit
+
+        # Connects using ssh key and verbose mode:
+        else
+
+            ssh -vvv -p ${_remoteport} -i $ssh_key "${_remoteuser}@${_remotehost}"
+            exit
+
+        fi
+
+    else
+
+        # Connects using ssh key without verbose mode:
+        if [ "$password" = true ]; then
+            # Conexão SSH:
+            sshpass -p "${_remotepass}" ssh -p ${_remoteport} -o StrictHostKeyChecking=no "${_remoteuser}@${_remotehost}"
+            exit
+
+        # Connects using ssh key without verbose:
+        else
+
+            ssh -p ${_remoteport} -i $ssh_key "${_remoteuser}@${_remotehost}"
+            exit
+
+        fi
+
+    fi
+
+fi

@@ -1,0 +1,183 @@
+#!/bin/bash
+
+# Description: This script sets up the baseline configuration for Equinix servers.
+# Script by: Wiliam de Freitas <wdefreitas@equinix.com>
+# Date: Jan 2026
+
+# Define color codes for terminal output
+color_cyan="\e[36m"
+color_pink="\e[35m"
+color_red="\e[31m"
+color_yellow="\e[33m"
+color_green="\e[32m"
+colors_reset="\e[0m"
+
+# Define tags for different message types
+tag_info="${color_cyan}[INFO]${colors_reset}"
+tag_done="${color_green}[DONE]${colors_reset}"
+tag_fail="${color_red}[FAIL]${colors_reset}"
+tag_warn="${color_yellow}[WARN]${colors_reset}"
+
+# Define default configuration directory:
+default_dir="/etc/default/equinix"
+
+# Define Nessus CLI path:
+nessus_cli="/opt/nessus_agent/sbin/nessuscli"
+
+# Check if nessus agent CLI exists:
+if [ -e "$nessus_cli" ]; then 
+
+    # Check if nessus agent is configured:
+    if /opt/nessus_agent/sbin/nessuscli agent status | grep "Not linked to a manager" &> /dev/null; then
+
+        # Load Nessus key from ~/.bashrc variable:
+        if [ ! -z "$KEY2" ]; then
+
+            echo -e "${tag_info} - Configuring Nessus Agent."
+
+            # Configure Nessus Agent with the provided key:
+            #/opt/nessus_agent/sbin/nessuscli agent link --groups="msh brazil" --cloud --key=$NESSUS_KEY
+            echo "configuring environment..."
+
+            # Check if the linking was successful:
+            case $? in
+
+                # Success case:
+                0) echo -e "${tag_done} - Nessus Agent linked successfully to the manager." ;
+                   echo -e "${tag_info} - Starting up Nessus Agent" ; nessus_status="1";;
+
+                # Failure case:
+                *) echo -e "${tag_fail} - Failed to link Nessus Agent to the manager." ; nessus_status="0" ;;
+
+            esac
+
+            # If linking was successful, ensure the service is running:
+            if [ $nessus_status -eq 1 ]; then
+
+                # Start and enable Nessus Agent service if it's inactive:
+                if systemctl status nessusagent | grep Active | awk '{print$2}' | grep inactive &> /dev/null; then
+
+                    # Start Nessus Agent service:
+                    systemctl start nessusagent &> /dev/null
+
+                    # Verify if the service started successfully:
+                    case $? in
+
+                        # Success case:
+                        0) systemctl enable nessusagent ;
+                           echo "Nessus Agent started successfully." ;;
+
+                        # Failure case:
+                        *) echo "Failed to start Nessus Agent." ;;
+                    
+                    esac
+
+                fi
+
+            else
+
+                # Nessus Agent is already linked to a manager.
+                echo "Nessus Agent is already linked to a manager."
+
+            fi
+
+        else
+
+            # Nessus key not found in environment variables:
+            echo -e "${tag_warn} - Nessus Agent key not found. Please set the NESSUS_KEY variable in ~/.bashrc to configure the agent."
+
+        fi
+
+    # Check if Nessus Agent is already linked:
+    elif /opt/nessus_agent/sbin/nessuscli agent status | grep "Link status" &> /dev/null; then
+
+        # Nessus Agent is already configured and linked to a manager.
+        echo -e "${tag_warn} - Nessus Agent is already configured and linked to a manager."
+
+    else
+
+        # Unable to determine Nessus Agent status.
+        echo -e "${tag_fail} - Unable to determine Nessus Agent status."
+
+    fi
+
+else
+
+    # Nessus Agent CLI not found.
+    echo -e "${tag_info} - Nessus Agent CLI not found. Skipping Nessus configuration."
+
+fi
+
+# Check if VRX agent is installed
+if [ ! -z $KEY1 ]; then
+
+    echo -e "${tag_info} - Configuring VRX Agent."
+
+    # Command to configure VRX agent goes here
+    echo "Configuring VRX agent..."
+    
+    export SECRET_KEY=$KEY1 && (url=https://vicarius-installer.s3.amazonaws.com/UnifiedAgent/vRx.sh; curl $url --output vRx.sh || wget -O vRx.sh $url) && chmod +x vRx.sh && sudo ./vRx.sh /SecretKey="$SECRET_KEY" /Hostname=eqixmso-api-gateway.vicarius.cloud /AgentType=LocalAgent && sudo sed -i 's/'"$SECRET_KEY"'/REDACTED/g' /var/log/auth.log && sudo systemctl restart rsyslog && unset SECRET_KEY
+
+    # Reload and restart the VRX agent service
+    systemctl daemon-reload && systemctl restart topiad
+
+    # Check if the configuration was successful
+    case $? in
+
+        # Success case
+        0) echo -e "${tag_done} - VRX Agent configured successfully." ;;
+
+        # Failure case
+        *) echo -e "${tag_fail} - Failed to configure VRX Agent." ;;
+
+    esac
+
+else
+
+    # VRX secret not found in environment variables
+    echo -e "${tag_warn} - VRX secret not found. Please set the VRX_SECRET variable in ~/.bashrc to configure the agent."
+
+fi
+
+# Setup Falcon Sensor:
+falcon_sensor="/opt/CrowdStrike/falconctl"
+
+if [ -e "$falcon_sensor" ]; then 
+
+    if [ -z "$KEY3" ]; then
+
+        echo -e "${tag_warn} - FALCON_CID variable is not set in the environment."
+
+    else
+
+        FALCON_CID=$KEY3
+
+        # Command to configure Falcon Sensor goes here  
+        echo -e "${tag_info} - Configuring CrowdStrike Falcon Sensor."
+
+        # Configure Falcon Sensor with the provided CID
+        /opt/CrowdStrike/falconctl -s --cid=$FALCON_CID
+
+        case $? in
+
+            # Success case
+            0) echo -e "${tag_done} - CrowdStrike Falcon Sensor configured successfully." ;;
+
+            # Failure case
+            *) echo -e "${tag_fail} - Failed to configure CrowdStrike Falcon Sensor." ;;
+
+        esac
+
+    else
+
+        # FALCON_CID variable not found
+        echo -e "${tag_warn} - FALCON_CID variable not found. Please set the FALCON_CID variable in ~/.bashrc to configure the sensor."
+
+    fi
+
+else
+
+    # Falcon Sensor not found
+    echo -e "${tag_info} - CrowdStrike Falcon Sensor not found. Skipping Falcon configuration."
+
+fi

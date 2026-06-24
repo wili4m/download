@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# Description: This script create a JSON file containing a list of servers compatible with Jira format.
+# The input file should contain a list of servers, one per line.
+# Author: wdefreitas@equinix.com
+# Date: 2026-06-22
+
+# Set the tool name and destination file name:
+toolname="jira_json"
+dst_file="checklist.json"
+
+# Function to display usage information:
+function usage() {
+
+    echo "$toolname - Convert JSON to Jira format"
+    echo "Usage: jj <input_file>"
+    exit 1
+
+}
+
+# Check if the parameter value was passed to the script:
+if [ -z "$1" ]; then
+
+    # If not, print the usage information and exit:
+    usage
+
+# Check if the file exists:
+elif [ ! -f "$1" ]; then
+
+    # If not, print the usage information and exit:
+    usage
+
+else
+
+    # If the file exists, assign the file name to a variable and initialize the counter:
+    file="$1"
+    # This counter will be used as ID for each server from the list:
+    counter=0
+
+fi
+
+# Creates the Json file with the initial structure:
+cat <<EOF > $dst_file
+{
+  "id": "CheckList",
+  "_obj_api_version": 1,
+  "tabs": [
+    {
+      "id": "tab-servers",
+      "name": "Checklist",
+      "sections": [
+        {
+          "id": "Servers",
+          "name": "Servers",
+          "allItemsDone": false,
+          "collapsed": false,
+          "itemsDone": 0,
+          "percentDone": 0,
+          "list": [
+EOF
+
+# Loop to get the server lists and convert to Json format:
+for server in $(cat $file | awk '{print$1}'); do
+
+    # Increment the counter:
+    counter=$((counter + 1))
+
+    # Print this message while convert server list:
+    echo "Processing server ID $counter: $server"
+
+    # Added the server to Json file:
+    echo "            { \"id\": \"$counter\", \"summary\": \"$server\", \"done\": false, \"status\": { \"id\": \"659e6425-f825-42b8-b1ea-3fe7e83f5571\", \"color\": \"#30b1d1\", \"code\": \"To Do\", \"isDone\": false }}," >> $dst_file
+
+done
+
+# removes the comma at the last server from the list:
+lastLine="id: $counter"
+sed -i "/\"id\": \"$counter\"/s/,$//g" $dst_file
+
+# The final JSON file contains the final structure:
+cat <<EOF >> $dst_file
+          ]
+        }
+      ]
+    }
+  ],
+  "activeTabIndex": 0,
+  "hideCompleted": false,
+  "stats": {
+    "itemsDone": 0,
+    "itemsRemaining": ${counter},
+    "totalPercentageDone": 0,
+    "mandatoryItemsDone": 0,
+    "mandatoryItemsRemaining": 0,
+    "mandatoryPercentageDone": null,
+    "totalMandatoryItems": 0,
+    "totalItems": ${counter},
+    "totalSections": 1,
+    "totalTabs": 1,
+    "checklistProgress": "Checklist Progress: 0/${counter}"
+  }
+}
+EOF
+
+echo ""
+# Print the amount of servers processed:
+echo "$counter servers processed."
+
+# Print the filename:
+echo "File created successfully: $dst_file"
