@@ -1,0 +1,151 @@
+#!/bin/sh
+
+# Directory used to store reboot schedule marker files.
+TARGET_DIR="/etc/default/equinix/reboot_schedule"
+
+# Create the target directory if it does not already exist.
+if [ ! -d "$TARGET_DIR" ]; then
+    mkdir -p "$TARGET_DIR"
+
+fi
+
+# Retrieve the short hostname. If hostname -s fails,
+# fall back to the full hostname command.
+HOST_NAME="$(hostname -s 2>/dev/null || hostname)"
+
+# Remove the domain suffix, keeping only the host name.
+HOST_NAME="${HOST_NAME%%.*}"
+
+# Map each hostname to its corresponding reboot schedule slot.
+case "$HOST_NAME" in
+
+    # Reboot slot: 00:30
+    eqix-msh-hsa-h-r-worker-1)
+        FILE_NAME="0030"
+        ;;
+
+    # Reboot slot: 01:00
+    dev-nfs.mso.equinix.com.br|\
+    dev-worker01.mso.equinix.com.br|\
+    elkms001.sp3.equinix.com.br|\
+    foreman-mso.equinix.com.br|\
+    puppet-lnx-equ-01-rj2.equinix.com.br|\
+    rundeck.mso.equinix.com.br|\
+    runner-mso.sp3.equinix.com.br|\
+    devops-amer-monitor|\
+    eqix-msh-hsa-rabbitmq-prd-01-new|\
+    mse-minio|\
+    mse-nfs|\
+    mse-rancher|\
+    mse-rke-tools-master-01|\
+    nfs-dev|\
+    eqix-msh-hsa-h-r-cp-1)
+        FILE_NAME="0100"
+        ;;
+
+    # Reboot slot: 01:10
+    eqix-msh-hsa-h-r-etcd-1)
+        FILE_NAME="0110"
+        ;;
+
+    # Reboot slot: 01:20
+    eqix-msh-hsa-h-r-k8s-1)
+        FILE_NAME="0120"
+        ;;
+
+    # Reboot slot: 01:30
+    dev-etcd01.mso.equinix.com.br|\
+    eqix-msh-hsa-h-r-worker-3)
+        FILE_NAME="0130"
+        ;;
+
+    # Reboot slot: 01:40
+    eqix-msh-hsa-h-r-lb-1)
+        FILE_NAME="0140"
+        ;;
+
+    # Reboot slot: 02:00
+    dev-worker02.mso.equinix.com.br|\
+    elkms002.rj2.equinix.com.br|\
+    puppet-lnx-equ-02-rj2.equinix.com.br|\
+    eqix-msh-hsa-h-r-cp-2)
+        FILE_NAME="0200"
+        ;;
+
+    # Reboot slot: 02:10
+    eqix-msh-hsa-h-r-etcd-2)
+        FILE_NAME="0210"
+        ;;
+
+    # Reboot slot: 02:20
+    eqix-msh-hsa-h-r-k8s-3)
+        FILE_NAME="0220"
+        ;;
+
+    # Reboot slot: 02:30
+    dev-etcd02.mso.equinix.com.br|\
+    eqix-msh-hsa-h-r-worker-4)
+        FILE_NAME="0230"
+        ;;
+
+    # Reboot slot: 03:00
+    dev-worker03.mso.equinix.com.br|\
+    eqix-msh-hsa-h-r-cp-3)
+        FILE_NAME="0300"
+        ;;
+
+    # Reboot slot: 03:10
+    eqix-msh-hsa-h-r-etcd-3)
+        FILE_NAME="0310"
+        ;;
+
+    # Reboot slot: 03:20
+    eqix-msh-hsa-h-r-k8s-2)
+        FILE_NAME="0320"
+        ;;
+
+    # Reboot slot: 03:30
+    dev-etcd03.mso.equinix.com.br|\
+    eqix-msh-hsa-h-r-worker-5)
+        FILE_NAME="0330"
+        ;;
+
+    # Reboot slot: 04:30
+    eqix-msh-hsa-h-r-worker-7)
+        FILE_NAME="0430"
+        ;;
+
+    # Fail if the hostname is not mapped to a reboot slot.
+    *)
+        echo "ERROR: Unmapped host: ${HOST_NAME}"
+        exit 1
+        ;;
+esac
+
+# Ensure the target directory exists before creating the marker file.
+if [ ! -d "$TARGET_DIR" ]; then
+    printf 'ERROR: target directory does not exist: %s\n' "$TARGET_DIR" >&2
+    exit 2
+fi
+
+if [ $(find $TARGET_DIR -type f | wc -l) -ge 1 ]; then
+
+    for file in $(find $TARGET_DIR -type f); do
+        echo "INFO: removing existing file ${file} for server ${HOST_NAME}."
+        rm -f $file
+    done
+
+fi
+
+# The filename represents the reboot time slot.
+if touch "$TARGET_DIR/$FILE_NAME"; then
+    printf 'INFO: file "%s/%s" created for server "%s".\n' \
+        "$TARGET_DIR" "$FILE_NAME" "$HOST_NAME"
+
+else
+
+    printf 'ERROR: failed to create file "%s/%s".\n' \
+        "$TARGET_DIR" "$FILE_NAME" >&2
+    exit 3
+
+fi

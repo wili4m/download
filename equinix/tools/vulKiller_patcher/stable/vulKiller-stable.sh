@@ -1,4 +1,12 @@
-#!/bin/bashv.b
+#!/bin/bash
+
+# Author: Wiliam de Freitas <wdefreitas@equinix.com>
+# Date: Feb 2026
+# Description: vulKiller (aka vk) automates the installation of security updates
+# on Linux servers (Debian, Ubuntu, CentOS, Oracle Linux, and Rocky Linux). The
+# script detects available security patches, applies them, and generates CSV
+# evidence reports showing package versions before and after the update process.
+
 ################################################################################
 # Identification Variables
 ################################################################################
@@ -7,10 +15,10 @@
 tool_name="vulkiller"
 
 # Just the tool stage for information purposes:
-tool_stage="rc"
+tool_stage="stable"
 
 # The tool version:
-tool_version="1.3.0"
+tool_version="1.2.8"
 
 # Determines the current OS:
 current_os="$(cat /etc/os-release | grep -w ID | awk -F= '{print$2}' | sed -e 's/"//g')"
@@ -21,6 +29,7 @@ version_os="$(cat /etc/os-release | grep -w VERSION_ID | awk -F= '{print$2}' | s
 ################################################################################
 # Modals Variables
 ################################################################################
+
 # modal_keep_report_files: true or false.
 # If true, keeps report files generated during execution.
 # If false, removes them after the script finishes.
@@ -36,24 +45,15 @@ modal_reboot_after_update=true
 # If false, updates only packages with security fixes available.
 modal_update_all_packages=true
 
-#modal_convert_server_time_to_brt: true or false
-# If true, converts the server time to BRT when the locale is different from America/Sao_Paulo
-# If false, ignores BRT and uses the locale in use by the server.
-modal_convert_server_time_to_brt=true
-
-# modal_force_reboot_after_update: true or false
-# If true, forces the server to reboot after the update process, regardless of the reboot schedule
-# if false, the server will only reboot if the reboot schedule allows it.
-modal_force_reboot_after_update=true
-
-# modal_ignore_held_packages: true or false
-# If true, forces the update of all packages, regardless of the modal_update_all_packages setting
-# if false, the update process will follow the modal_update_all_packages setting.
-modal_ignore_held_packages=false
-
 ################################################################################
-# Threshold variables to check disk space before running the update process:
+# General Variables:
 ################################################################################
+
+# Server hostname:
+hostname="$(hostname)"
+
+# Directory where empty files named after packages are stored to prevent them from being updated
+path_to_pkgs_hold="/etc/default/equinix/pkgs_hold"
 
 # Minimum required disk space in MBs for /
 readonly required_disk_space_mb_root=1024
@@ -72,90 +72,6 @@ readonly required_disk_space_mb_usr=1024
 
 # Minimum required disk space in MBs for /tmp
 readonly required_disk_space_mb_tmp=512
-
-################################################################################
-# CPU/Memory and I/O Priority Variables:
-################################################################################
-
-# cpu_priority: high, balanced, or low
-# maximum: not recommended for production environments.
-# high: maintenance windows with low resource contention.
-# balanced: default for most production environments.
-# low: hosts with high resource contention (e.g. DB/HA nodes).
-cpu_priority="high"
-
-case "$cpu_priority" in
-
-    maximum)
-        cpu_priority_desc="Using maximum CPU and I/O priority (Not recommended for some environments)."
-        renice -n -20 -p "$$" >/dev/null 2>&1 || true
-        ionice -c 1 -n 0 -p "$$" >/dev/null 2>&1 || true
-        ;;
-
-    high)
-        cpu_priority_desc="Using high CPU and I/O priority."
-        renice -n -15 -p "$$" >/dev/null 2>&1 || true
-        ionice -c 2 -n 0 -p "$$" >/dev/null 2>&1 || true
-        ;;
-
-    balanced)
-        cpu_priority_desc="Using balanced CPU and I/O priority."
-        renice -n -10 -p "$$" >/dev/null 2>&1 || true
-        ionice -c 2 -n 4 -p "$$" >/dev/null 2>&1 || true
-        ;;
-
-    low)
-        cpu_priority_desc="Using low CPU and I/O priority."
-        renice -n 0 -p "$$" >/dev/null 2>&1 || true
-        ionice -c 3 -p "$$" >/dev/null 2>&1 || true
-        ;;
-
-    *)
-        cpu_priority_desc="Using balanced CPU and I/O priority."
-        renice -n 0 -p "$$" >/dev/null 2>&1 || true
-        ionice -c 2 -n 4 -p "$$" >/dev/null 2>&1 || true
-        ;;
-
-esac
-
-################################################################################
-# Ulimit configuration:
-################################################################################
-
-# Check if the ulimit was set successfully, and if not, log a warning message:
-cur_ulimit=$(ulimit -n)
-
-# Determines the desired ulimit value for file descriptors.
-new_ulimit=65535
-
-# Check the current ulimit value and compare it with the desired value:
-if [ "$cur_ulimit" -lt "$new_ulimit" ]; then
-
-    # Set the new ulimit value temporarily for the current shell session:
-    if command ulimit -n "$new_ulimit" > /dev/null 2>&1 ; then
-
-        # Log a message indicating that the ulimit was set successfully:
-        func_log "$INFO" "Successfully set ulimit temporarily to $new_ulimit." "both"
-
-    else
-
-        # Log a warning message indicating that the ulimit could not be set:
-        func_log "$WARN" "Failed to set ulimit to $new_ulimit. Some operations may fail due to file descriptor limits." "both"
-
-    fi
-
-fi
-
-################################################################################
-# Global Variables:
-################################################################################
-
-# Server hostname:
-hostname="$(hostname)"
-
-# Directory where empty files named after packages are stored to prevent them from being updated
-path_to_pkgs_hold="/etc/default/equinix/pkgs_hold"
-
 
 ################################################################################
 # Reboot Schedule Variables:
@@ -196,13 +112,7 @@ date_month=$(date +%m)
 date_day=$(date +%d)
 
 # Timezone:
-timezone="$(date +%z)"
-
-# Server hour:
-system_time=$(date +"%H%M")
-
-# Created to compare server time with brasilia time
-brazil_time="$(TZ='America/Sao_Paulo' date +"%H%M")"
+timezone="$(date +%Z)"
 
 # Defines date in format YYYY_MM_DD to be used in file names::
 date_name_files="${date_year}_${date_month}_${date_day}"
@@ -365,40 +275,56 @@ func_pkgs_to_avoid_update() {
             func_log "$INFO" "Found packages to avoid updates: $excludes" "both"
 
             # Loop through each package in the list of packages to be held and check if it has a security update available:
-            for pkg_check in $excludes ; do
+            for pkg in $excludes ; do
 
                 # Checks if the package is in the list of available security updates:
-                if grep -iw "$pkg_check" "$report_updates_available" > /dev/null ; then
+                if grep -iw "$pkg" "$report_updates_available" > /dev/null ; then
 
-                    func_log "$WARN" "Package $pkg_check: update available but held back ($tool_name hold policy)." "both"
+                    case $current_os in
+
+                        # Debian and Debian-like:
+                        debian|ubuntu)
+                            func_log "$WARN" "Package $pkg has a security update available but will be held." "both"
+                            packages_to_hold="${packages_to_hold} ${pkg}*" ;
+                            apt-mark hold "$pkg" 2> /dev/null ;;
+
+                        # RHEL and RHEL-like:
+                        rhel|centos|oracle|ol|rocky)
+                            func_log "$WARN" "Package $pkg has a security update available but will be held." "both"
+                            packages_to_hold="${packages_to_hold},${pkg}*" ;;
+
+                        # Unsupported OS:
+                        *)
+                            func_log "$ERROR" "Unsupported OS for package hold. Please check the script." "both" ;
+                            exit 1 ;;
+
+                    esac
 
                 else
 
-                    func_log "$WARN" "Package $pkg_check: no update available but remains held back ($tool_name hold policy)." "both"
+                    # If the package is not in the list of available security updates, just print a message indicating that it will be held:
 
-                fi
+                    case $current_os in
 
-            done
+                        # Debian and Debian-like:
+                        debian|ubuntu)
+                            func_log "$INFO" "Package $pkg will be held." "both"
+                            packages_to_hold="${packages_to_hold} ${pkg}*" ;
+                            apt-mark hold "$pkg" 2> /dev/null ;;
 
-            for pkg_hold in $excludes ; do
+                        # RHEL and RHEL-like:
+                        rhel|centos|oracle|ol|rocky)
+                            func_log "$INFO" "Package $pkg will be held." "both"
+                            packages_to_hold="${packages_to_hold},${pkg}*" ;;
 
-                case $current_os in
-
-                    # Debian and Debian-like:
-                    debian|ubuntu)
-                        packages_to_hold="${packages_to_hold} ${pkg_hold}*" ;
-                        apt-mark hold "$pkg_hold" 2> /dev/null ;;
-
-                    # RHEL and RHEL-like:
-                    rhel|centos|oracle|ol|rocky)
-                        packages_to_hold="${packages_to_hold},${pkg_hold}" ;;
-
-                    # Unsupported OS:
-                    *)
-                        func_log "$ERROR" "Unsupported OS for package hold. Please check the script." "both" ;
-                        exit 1 ;;
+                        # Unsupported OS:
+                        *)
+                            func_log "$ERROR" "Unsupported OS for package hold. Please check the script." "both" ;
+                            exit 1 ;;
 
                     esac
+
+                fi
 
             done
 
@@ -768,46 +694,6 @@ func_print_evidence() {
 
 }
 
-func_convert_time_to_brt() {
-
-    local system_minutes brazil_minutes reboot_minutes diff_server_time_to_brazil_time
-
-    # Convert hours to minutes and use base 10 to format values:
-    # Eg.: 0133 = 1 * 60 + 33 = 93 minutes
-    system_minutes=$((10#${system_time:0:2} * 60 + 10#${system_time:2:2}))
-    brazil_minutes=$((10#${brazil_time:0:2} * 60 + 10#${brazil_time:2:2}))
-    reboot_minutes=$((10#${reboot_time:0:2} * 60 + 10#${reboot_time:2:2}))
-
-    # Subtract system_minutes from brazil_minutes:
-    # Ex.: (system_minutes = 01h:33 = 93 minutes) - (brazil_minutes = 22h:33 or 1353 min) = -1260
-    diff_server_time_to_brazil_time=$((system_minutes - brazil_minutes))
-
-    # Checks if the result is a negative value:
-    if (( diff_server_time_to_brazil_time < 0 )); then
-
-        # Normalize the value to a positive value adding add 1440 min (24 hours) to avoid issues:
-        # Ex.: -1260 + 1440 = 180 min (3 hours)
-        diff_server_time_to_brazil_time=$((diff_server_time_to_brazil_time + 1440))
-
-    fi
-
-    # Sums the reboot min and diff_server_time_to_brazil_time:
-    # Ex.: *reboot_minutes = 01h:00 = 60 min) + 180 min = 240 min
-    reboot_minutes=$((reboot_minutes + diff_server_time_to_brazil_time))
-
-    # Applies the difference to the desired reboot time (specified in BRT)
-    # and uses modulo 1440 to keep the result within a valid day.
-    # E.g.: (reboot=01:00 -> 60 min) + 180 min = 240 min -> 04:00
-    reboot_minutes=$((reboot_minutes % 1440))
-
-    # Converts back the resultant minutes to hours:
-    # Exemplo:
-    # 240 min -> 04:00 -> 0400
-
-    converted_time_to_reboot=$(printf "%02d%02d" $((reboot_minutes / 60)) $((reboot_minutes % 60)))
-
-}
-
 func_reboot_server() {
 
     if [ "$modal_reboot_after_update" = "false" ]; then
@@ -816,9 +702,6 @@ func_reboot_server() {
         return 0
 
     fi
-
-    echo ""
-    echo "${bar} Reboot Policy ${bar}"
 
     # Start to verify if the server needs to be rebooted by checking if a new kernel was installed.
     case $current_os in
@@ -909,131 +792,83 @@ func_reboot_server() {
         # Log a message indicating that the server will be rebooted to apply the new kernel and security fixes:
         func_log "$INFO" "A system reboot is required to apply the new kernel and security updates." "both"
 
-        if [ "$modal_force_reboot_after_update" = "true" ]; then
+        # Check if directory for reboot schedule exists:
+        if [ ! -d "$path_to_reboot_schedule" ]; then
 
-            func_log "$INFO" "The modal to force reboot after update is enabled. The server will be rebooted immediately." "both"
+            # If not, create it:
+            mkdir -p "$path_to_reboot_schedule"
 
         else
 
-            # Check if directory for reboot schedule exists:
-            if [ ! -d "$path_to_reboot_schedule" ]; then
+            # Count the number of files in the reboot schedule directory:
+            reboot_time_schedule_count=$(find "$path_to_reboot_schedule" -maxdepth 1 -type f -name '[0-2][0-9][0-5][0-9]' | wc -l)
 
-                # If not, create it:
-                mkdir -p "$path_to_reboot_schedule"
+            # Regex explanation:
+            # Expect file name format: HHMM. So, there are only 4 characteres in the file name.
+            # The first character can be 0, 1 or 2 to represent the tens of hours.
+            # The second one can be 0 to 9 if the first is 0 or 1.
+            # The third one can be 0 to 5 to represent the tens of minutes.
+            # The fourth one can be 0 to 9 to represent the units of minutes.
+            # Eg: 0000 = valid. Represents 00:00 (midnight)
+            # Eg: 2319 = valid. Represents 23:19 (11:19 PM)
+            # Eg: 2560 = invalid. Represents 25:60 (invalid time). It will be detected in the validation step below.
 
-            else
+            case "$reboot_time_schedule_count" in
 
-                # Count the number of files in the reboot schedule directory:
-                reboot_time_schedule_count=$(find "$path_to_reboot_schedule" -maxdepth 1 -type f -name '[0-2][0-9][0-5][0-9]' | wc -l)
+                # If there is no file, the server will be rebooted immediately:
+                0)
+                    func_log "$INFO" "This server does not have a reboot schedule configured." "both"
+                    reboot_scheduled=0
+                ;;
 
-                # Regex explanation:
-                # Expect file name format: HHMM. So, there are only 4 characteres in the file name.
-                # The first character can be 0, 1 or 2 to represent the tens of hours.
-                # The second one can be 0 to 9 if the first is 0 or 1.
-                # The third one can be 0 to 5 to represent the tens of minutes.
-                # The fourth one can be 0 to 9 to represent the units of minutes.
-                # Eg: 0000 = valid. Represents 00:00 (midnight)
-                # Eg: 2319 = valid. Represents 23:19 (11:19 PM)
-                # Eg: 2560 = invalid. Represents 25:60 (invalid time). It will be detected in the validation step below.
+                # If there is one file, creates new variables to parameterize the reboot schedule:
+                1)
+                    func_log "$INFO" "Reboot schedule configuration detected. Validating schedule..." "both"
 
-                case "$reboot_time_schedule_count" in
+                    # Specify the file format using regex:
+                    reboot_time_schedule="${path_to_reboot_schedule}/[0-2][0-9][0-5][0-9]"
 
-                    # If there is no file, the server will be rebooted immediately:
-                    0)
-                        func_log "$INFO" "This server does not have a reboot schedule configured." "both"
-                        reboot_scheduled=0
-                    ;;
+                    # Verifies if the reboot schedule file exists:
+                    if [ -f $reboot_time_schedule ]; then
 
-                    # If there is one file, creates new variables to parameterize the reboot schedule:
-                    1)
-                        func_log "$INFO" "Reboot schedule configuration detected. Validating..." "both"
+                        # Extract the hour from file name (just two first characters):
+                        reboot_time_schedule_hour="$(basename ${reboot_time_schedule} | cut -c1-2)"
 
-                        # Specify the file format using regex:
-                        reboot_time_schedule="${path_to_reboot_schedule}/[0-2][0-9][0-5][0-9]"
+                        # Extract the minute from file name (just two last characters):
+                        reboot_time_schedule_min="$(basename ${reboot_time_schedule} | cut -c3-4)"
 
-                        # Verifies if the reboot schedule file exists:
-                        if [ -f $reboot_time_schedule ]; then
+                        # Validates if the hour is between 00 and 23 and if the minute is between 00 and 59:
+                        if [ "$reboot_time_schedule_hour" -ge 24 ] || [ "$reboot_time_schedule_min" -ge 60 ]; then
 
-                            # Extract the hour from file name (just two first characters):
-                            reboot_time_schedule_hour="$(basename ${reboot_time_schedule} | cut -c1-2)"
-
-                            # Extract the minute from file name (just two last characters):
-                            reboot_time_schedule_min="$(basename ${reboot_time_schedule} | cut -c3-4)"
-
-                            # Validates if the hour is between 00 and 23 and if the minute is between 00 and 59:
-                            if [ "$reboot_time_schedule_hour" -ge 24 ] || [ "$reboot_time_schedule_min" -ge 60 ]; then
-
-                                # If hour is equal or bigger than 24, or if minute is equal or bigger than 60, reports errors and aborts the reboot:
-                                func_log "$ERROR" "Validation failed. Invalid time schedule format. Please check the files in $path_to_reboot_schedule directory." "both"
-                                reboot_aborted=1
-
-                            else
-
-                                if [ "$modal_convert_server_time_to_brt" = "true" ]; then
-
-                                    func_log "$INFO" "Checking: The system is using a time zone ($(date "+%Z %z")) other than BRT." "both"
-
-                                    if [[ "$system_time" != "$brazil_time" ]]; then
-
-                                        func_log "$INFO" "Checking: Calculating the restart time based on BRT..." "both"
-
-                                        reboot_time="${reboot_time_schedule_hour}${reboot_time_schedule_min}"
-
-                                        #func_log "$INFO" "Confirmed: Schedule reboot time (BRT -0300): ${reboot_time_schedule_hour}:${reboot_time_schedule_min}" "both"
-
-                                        func_convert_time_to_brt
-                                        #echo $converted_time_to_reboot
-
-                                        # Extract the hour from file name (just two first characters):
-                                        reboot_time_schedule_hour_brt="$(basename ${converted_time_to_reboot} | cut -c1-2)"
-
-                                        # Extract the minute from file name (just two last characters):
-                                        reboot_time_schedule_min_brt="$(basename ${converted_time_to_reboot} | cut -c3-4)"
-
-                                        #func_log "$INFO" "Confirmed: Schedule reboot time ($(date "+%Z %z")): ${reboot_time_schedule_hour_brt}:${reboot_time_schedule_min_brt}" "both"
-                                        func_log "$INFO" "Confirmed: Restart time at ${reboot_time_schedule_hour_brt}:${reboot_time_schedule_min_brt} ($(date "+%Z %z")), (${reboot_time_schedule_hour}:${reboot_time_schedule_min} BRT)." "both"
-
-
-                                        recalculated_time=1
-
-                                    else
-
-                                        func_log "$INFO" "Confirmed: The server is configured with the BRT timezone." "both"
-
-
-                                    fi
-
-                                else
-
-                                    func_log "$INFO" "Confirmed: The restart policy will use the server timezone as a reference." "both"
-
-                                fi
-
-                                # If the validation is successful, mark the server to reboot respecting the schedule:
-                                reboot_scheduled=1
-
-                            fi
+                            # If hour is equal or bigger than 24, or if minute is equal or bigger than 60, reports errors and aborts the reboot:
+                            func_log "$ERROR" "Validation failed. Invalid time schedule format. Please check the files in $path_to_reboot_schedule directory." "both"
+                            reboot_aborted=1
 
                         else
 
-                            # If not, log an error message and abort the reboot:
-                            func_log "$ERROR" "Invalid scheduled file format detected in ${path_to_reboot_schedule}. The reboot will not be performed." "both"
-                            reboot_aborted=1
-
+                            # If the validation is successful, mark the server to reboot respecting the schedule:
+                            reboot_scheduled=1
 
                         fi
 
-                    ;;
+                    else
 
-                    # If there are more than one file, the reboot will be aborted to avoid conflicts:
-                    *)
-                        func_log "$ERROR" "Multiple schedules found in ${path_to_reboot_schedule}. The reboot will not be performed." "both"
+                        # If not, log an error message and abort the reboot:
+                        func_log "$ERROR" "Invalid scheduled file format detected in ${path_to_reboot_schedule}. The reboot will not be performed." "both"
                         reboot_aborted=1
-                    ;;
 
-                esac
 
-            fi
+                    fi
+
+                ;;
+
+                # If there are more than one file, the reboot will be aborted to avoid conflicts:
+                *)
+                    func_log "$ERROR" "Multiple schedules found in ${path_to_reboot_schedule}. The reboot will not be performed." "both"
+                    reboot_aborted=1
+                ;;
+
+            esac
 
         fi
 
@@ -1053,14 +888,11 @@ func_reboot_server() {
 
                 else
 
-                    func_log "$INFO" "Scheduling the reboot..." "both" ;
-
-
                     case $reboot_scheduled in
                         0)
 
                             # Schedule the reboot and send a broadcast to all logged in users:
-                            shutdown -r +5 "The server will reboot to apply the new kernel/security fixes. Please save your work and log out." 2> /dev/null
+                            shutdown -rf +5 "The server will reboot to apply the new kernel/security fixes. Please save your work and log out." 2> /dev/null
 
                             if [ -f "/run/systemd/shutdown/scheduled" ]; then
 
@@ -1081,53 +913,21 @@ func_reboot_server() {
                         1)
 
                             # Schedule the reboot respecting the schedule and send a broadcast to all logged in users:
-                            #shutdown -rf ${reboot_time_schedule_hour}:${reboot_time_schedule_min} "The server will reboot to apply the new kernel/security fixes. Please save your work and log out." 2> /dev/null
+                            shutdown -rf ${reboot_time_schedule_hour}:${reboot_time_schedule_min} "The server will reboot to apply the new kernel/security fixes. Please save your work and log out." 2> /dev/null
 
-                            if [ "$recalculated_time" == 1 ]; then
+                            if [ -f "/run/systemd/shutdown/scheduled" ]; then
 
-                                    # Performing the reboot schedule command:
-                                    shutdown -r ${reboot_time_schedule_hour_brt}:${reboot_time_schedule_min_brt} "Server reboot at ${reboot_time_schedule_hour_brt}:${reboot_time_schedule_min_brt}\
-                                    for kernel update. Save your work and log off." 2> /dev/null
+                                # Check the reboot date:
+                                reboot_scheduled="$(grep ^USEC= /run/systemd/shutdown/scheduled | cut -d= -f2)"
+                                reboot_scheduled_human_readable="$(date -d "@$((reboot_scheduled / 1000000))" '+%Y-%m-%d %H:%M:%S %Z')"
 
-                                    if [ -f "/run/systemd/shutdown/scheduled" ]; then
-                                        # Check the reboot date:
-                                        reboot_scheduled="$(grep ^USEC= /run/systemd/shutdown/scheduled | cut -d= -f2)"
-                                        reboot_scheduled_human_readable="$(date -d "@$((reboot_scheduled / 1000000))" '+%Y-%m-%d %H:%M:%S %Z')"
-                                        func_log "$INFO" "Reboot confirmed. Server reboot scheduled for ${reboot_scheduled_human_readable} (${reboot_time_schedule_hour}:${reboot_time_schedule_min} BRT)." "both"
-
-                                    else
-
-                                        failed_to_schedule=1
-
-                                    fi
+                                func_log "$INFO" "Reboot confirmed. Server reboot scheduled for ${reboot_scheduled_human_readable}." "both"
 
                             else
 
-                                    shutdown -r ${reboot_time_schedule_hour}:${reboot_time_schedule_min} "Server reboot at ${reboot_time_schedule_hour}:${reboot_time_schedule_min}\
-                                    for kernel update. Save your work and log off." 2> /dev/null
-
-                                    if [ -f "/run/systemd/shutdown/scheduled" ]; then
-
-                                        # Check the reboot date:
-                                        reboot_scheduled="$(grep ^USEC= /run/systemd/shutdown/scheduled | cut -d= -f2)"
-                                        reboot_scheduled_human_readable="$(date -d "@$((reboot_scheduled / 1000000))" '+%Y-%m-%d %H:%M:%S %Z')"
-                                        func_log "$INFO" "Reboot confirmed. Server reboot scheduled for ${reboot_scheduled_human_readable}." "both"
-
-                                    else
-
-                                        failed_to_schedule=1
-
-                                    fi
+                                func_log "$ERROR" "Failed to schedule the reboot. Please check the system logs for more details." "both"
 
                             fi
-
-                            if [ "$failed_to_schedule" == 1 ]; then
-
-                                func_log "$ERROR" "Failed to schedule the reboot. Please check if dbus is running and/or the system logs for more details." "both"
-                                exit 1
-
-                            fi
-
 
                         ;;
 
@@ -1362,8 +1162,6 @@ func_log "$INFO" "Tool Release Stage  : ${tool_stage}" "both"
 func_log "$INFO" "Modal Update Level  : ${update_level}" "both"
 func_log "$INFO" "Modal Reboot Server : ${modal_reboot_after_update}" "both"
 func_log "$INFO" "Modal Keep Reports  : ${modal_keep_report_files}" "both"
-func_log "$INFO" "CPU/IO Priority     : ${cpu_priority_desc}" "both"
-
 echo ""
 
 # Displaying OS Informations:
@@ -1371,8 +1169,7 @@ echo "$bar Current System Information $bar"
 func_log "$INFO" "Server Hostname     : ${hostname}" "both"
 func_log "$INFO" "Current OS          : ${current_os}" "both"
 func_log "$INFO" "Current OS Version  : ${version_os}" "both"
-func_log "$INFO" "Current Date Time   : ${date_name_files}" "both"
-#func_log "$INFO" "Current Hour        : ${full_hour}" "both"
+func_log "$INFO" "Current Date        : ${date}" "both"
 func_log "$INFO" "Server Uptime       : ${uptime}" "both"
 echo ""
 
@@ -1683,16 +1480,8 @@ else
 
 fi
 
-if [ "$modal_ignore_held_packages" == true ]; then
-
-    func_log "$INFO" "All packages will be updated, including held packages." "both"
-
-else
-
-    # Call function to collect list of packages to check if the package have security updates available:
-    func_pkgs_to_avoid_update
-
-fi
+# Call function to collect list of packages to check if the package have security updates available:
+func_pkgs_to_avoid_update
 
 # Perform the update only in packages with security fixes, excluding the ones in the hold list:
 func_perform_update

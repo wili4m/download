@@ -3,7 +3,15 @@
 # Script by Wiliam Freitas
 # Description: Connect to various gateways with predefined credentials.
 
-prompt_color=true
+if [ "$gwcli_profile" == "dark" ]; then
+
+    prompt_color=dark
+
+else
+
+    prompt_color=white
+
+fi
 
 # Determina se a autenticacao é por chave ou senha:
 password=false
@@ -142,17 +150,32 @@ while [ $# -gt 0 ]; do
 
 done
 
-# Determine colors on output. Works well on dark backgrounds:
-if [ $prompt_color = true ]; then
+# Use exported variable gwcli_profile to determine prompt color:
+if [ $prompt_color = "white" ]; then
 
-    # Define cores para output de mensagens:
-    colorCyan='\033[0;36m'
-    colorPink='\033[38;5;205m'
-    colorGreenLight='\033[1;32m'
-    colorRed='\033[0;31m'
-    colorYlw='\033[0;33m'
-    colorWhite='\033[1;37m'
-    nocolor='\033[0m'
+    # Colors optimized for light (white) terminal background
+    colorBlue='\033[0;34m'        # dark blue (replaces bright cyan, better contrast)
+    colorMagenta='\033[0;35m'     # dark magenta (replaces pink, more readable)
+    colorGreen='\033[0;32m'       # standard green (avoid bright/bold green)
+    colorRed='\033[0;31m'         # standard red
+    colorYellow='\033[0;33m'      # dark yellow / brown (visible on white background)
+    colorBlack='\033[0;30m'       # black (replaces white text)
+    colorGray='\033[1;30m'        # dark gray (for secondary text)
+    nocolor='\033[0m'             # reset color
+
+elif [ $prompt_color = "dark" ]; then
+
+    colorCyan='\033[0;36m'        # cyan (standard intensity)
+    colorPink='\033[38;5;205m'    # pink (256-color palette, bright pink tone)
+    colorGreenLight='\033[1;32m'  # bright/light green (bold)
+    colorRed='\033[0;31m'         # red (standard intensity)
+    colorYlw='\033[0;33m'         # yellow (often appears brown/dark yellow on some terminals)
+    colorWhite='\033[1;37m'       # bright white (high intensity)
+    nocolor='\033[0m'             # reset all colors and attributes
+
+else
+
+    prompt_color = false
 
 fi
 
@@ -188,9 +211,9 @@ server3=("pasp1.corp.equinix.com" "22" "${_userGlobal}" "${_passGlobal}" "Hostna
 server4=("pasp2.corp.equinix.com" "22" "${_userGlobal}" "${_passGlobal}" "Hostname:" "sp2lxjh01" "AD:" "Global")
 # Br-Equinix-Ms servers array:
 server5=("palnxrj2.corp.equinix.com" "22" "${_userBREquinix}" "${_passBREquinix}" "Hostname:" "eqix-msh-pa-rj2" "AD:" "BR-Equinix")
-server6=("palnxsp3.corp.equinix.com" "22" "${_userBREquinix}" "${_passBREquinix}" "Hostname:" "msh-pa-01-sp3" "AD:" "BR-Equinix")
+server6=("palnxsp3.corp.equinix.com" "22" "${_userBREquinix}" "${_passBREquinix}" "Hostname:" "sp3-lnx-jmp-03" "AD:" "BR-Equinix")
 server7=("pa-lnx-csc-sp3-01.equinix.com.br" "11169" "${_userBREquinix}" "${_passBREquinix}" "Hostname:" "pa-lnx-csc-sp3-01" "AD:" "BR-Equinix")
-server8=("amer-palnx-rj2.equinix.com.br" "11167" "${_userBREquinix}" "${_passBREquinix}" "Hostname:" "amer-palnx-rj2" "AD:" "BR-Equinix")
+server8=("amer-palnx-rj2.equinix.com.br" "11167" "${_userBREquinix}" "${_passBREquinix}" "Hostname:" "rj2-lnx-jmp-02" "AD:" "BR-Equinix")
 # North America servers array:
 server9=("da6-gms-jmp-01.na.equinixms.com" "22" "${_userNA}" "${_passNA}" "Hostname:" "da6-gms-jmp-01" "AD:" "North America")
 server10=("ch3-gms-jmp-01.na.equinixms.com" "22" "${_userNA}" "${_passNA}" "Hostname:" "ch3-gms-jmp-01" "AD:" "North America")

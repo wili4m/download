@@ -6,7 +6,7 @@
 ################################################################################
 # Description
 ################################################################################
-#   eqx-secpatcher automates the installation of security updates on Linux servers
+#   vulKiller automates the installation of security updates on Linux servers
 #   (Debian, Ubuntu, CentOS, Oracle Linux, and Rocky Linux). The script detects
 #   available security patches, applies them, and generates CSV evidence reports
 #   showing package versions before and after the update process.
@@ -15,7 +15,7 @@
 # Features
 ################################################################################
 #   - Package hold list:
-#       Packages listed in /etc/default/secpatcher/pkgs_hold/ are excluded from updates.
+#       Packages listed in /etc/default/equinix/pkgs_hold/ are excluded from updates.
 #   - Pre-update CSV:
 #       Snapshot of all available security updates before execution.
 #   - Post-update CSV:
@@ -33,16 +33,15 @@
 #       If enabled, keeps temporary files generated during execution.
 #       If disabled, removes them after the script finishes.
 
-
 #
 # Variables:
-# 
+#
 
 # Just the tool name for log purposes:
 tool_name="vulkiller"
 
 # The tool version:
-tool_version="1.1"
+tool_version="0.1.5"
 
 # Determine the current OS by reading the /etc/os-release file and extracting the ID field:
 current_os="$(cat /etc/os-release | grep -i -w ID | awk -F= '{print$2}' | sed -e 's/"//g')"
@@ -102,7 +101,7 @@ if [ ! -d $tool_log_path ]; then
 
 fi
 
-# Verifies if the log file exists: 
+# Verifies if the log file exists:
 if [ -e $tool_log_file ]; then
 
     # If yes, spected to receive 2 arguments: $1 and $2
@@ -110,27 +109,27 @@ if [ -e $tool_log_file ]; then
     local message="$2"
     local timestamp
     timestamp=$(date '+%Y-%m-%d %H:%M:%S (%Z)')
-    
-    # Logging:
-    echo "${timestamp} [${level}] ${message}" >> "${tool_log_file}"
-    
-    # Output:
-    echo "[${level}] $message" 
+
+    case $log_mode in
+
+        both)
+            echo "${timestamp} [${level}] ${message}" >> "${tool_log_file}" ;
+            echo "[${level}] $message" ;;
+
+        file)
+            echo "${timestamp} [${level}] ${message}" >> "${tool_log_file}" ;;
+
+        screen)
+            echo "[${level}] $message" ;;
+
+        silent) ;;
+
+        *)
+            echo "Invalid or undefined log_mode value" ; exit 1 ;;
+
+    esac
 
 fi
-
-}
-
-# Function to validate pre-update conditions:
-func_validation_pre_update() {
-
-    # Check if the script is run as root:
-    if [ "$EUID" -ne 0 ]; then
-
-        echo "ERROR: This script must be run as root. Please use sudo or switch to the root user."
-        exit 1
-
-    fi
 
 }
 
@@ -140,13 +139,14 @@ func_pkgs_to_avoid_update() {
     if [ -d "$path_to_pkgs_hold" ]; then
 
     # Just a message to separate the update process in the log:
+    log_mode="both"
     log_level="INFO"
     log_msg="Verifying if there are packages to be held to avoid updates..."
-    func_log "$log_level" "$log_msg" 
+    func_log "$log_level" "$log_msg"
     echo ""
-    
+
     # Just a message to separate the update process in the log:
-    echo "${bar} Check core services to avoid updates ${bar}" 
+    echo "${bar} Check core services to avoid updates ${bar}"
 
     # List of packages to be held to avoid updating (hold).
     excludes="$(find /etc/default/equinix/pkgs_hold/ -maxdepth 1 -type f -printf '%f ' | sed 's/,$//')"
@@ -155,9 +155,10 @@ func_pkgs_to_avoid_update() {
         if [ -n "$excludes" ]; then
 
             # Printing the list of packages to be held:
+            log_mode="both"
             log_level="INFO"
             log_msg="Found packages to avoid updates: $excludes"
-            func_log "$log_level" "$log_msg" 
+            func_log "$log_level" "$log_msg"
 
             # Loop through each package in the list of packages to be held and check if it has a security update available:
             for pkg in $excludes ; do
@@ -169,6 +170,7 @@ func_pkgs_to_avoid_update() {
 
                         # Debian and Debian-like:
                         debian|ubuntu)
+                            log_mode="both"
                             log_level=WARM
                             log_msg="Package $pkg has a security update available but will be held to avoid updating."
                             func_log "$log_level" "$log_msg" ;
@@ -176,22 +178,26 @@ func_pkgs_to_avoid_update() {
                             apt-mark hold $pkg 2> /dev/null ;;
 
                         # RHEL and RHEL-like:
-                        rhel|centos|oracle|rocky)
+                        rhel|centos|oracle|rocky|ol)
+                            log_mode="both"
                             log_level=WARM
                             log_msg="Package $pkg has a security update available but will be excluded from update."
                             func_log "$log_level" "$log_msg" ;
-                            packages_to_hold="${packages_to_hold},${pkg}" ;;
+                            packages_to_hold="${packages_to_hold},${pkg}*" ;;
 
                         # Unsupported OS:
-                        *)  log_level=ERROR
+                        *)
+                            log_mode="both"
+                            log_level=ERROR
                             log_msg="Unsupported OS for package hold. Please check the script."
                             func_log "$log_level" "$log_msg" ; exit 1 ;;
-                    
+
                     esac
 
                 else
 
                     # If the package is not in the list of available security updates, print a message indicating that it will not be held:
+                    log_mode="both"
                     log_level=INFO
                     log_msg="Package $pkg does not have a security update available and will not be held."
                     func_log "$log_level" "$log_msg"
@@ -203,6 +209,7 @@ func_pkgs_to_avoid_update() {
         else
 
             # Just a message to separate the update process in the log:
+            log_mode="both"
             log_level=INFO
             log_msg="No packages marked to be held. All security updates will be applied."
             func_log "$log_level" "$log_msg"
@@ -219,6 +226,7 @@ func_pkgs_to_avoid_update() {
 func_perform_update() {
 
     # Perform the update only in packages with security fixes, excluding the ones in the hold list:
+    log_mode="both"
     log_level=INFO
     log_msg="Performing security update..."
     func_log "$log_level" "$log_msg"
@@ -236,7 +244,7 @@ func_perform_update() {
                 apt install -y \
                 -o Dpkg::Options::="--force-confdef" \
                 -o Dpkg::Options::="--force-confold" \
-                $(apt list --upgradable 2>/dev/null | grep -i sec | cut -d/ -f1 | grep ^[a-z] | grep -vFf <(ls $path_to_pkgs_hold) | tr '\n' ' ') ;
+                $(apt list --upgradable 2>/dev/null | grep -i sec | cut -d/ -f1 | grep ^[a-z] | grep -vFf <(ls $path_to_pkgs_hold) | tr '\n' ' ')
 
                 case $? in
                     0) update_status="Success" ;;
@@ -255,9 +263,9 @@ func_perform_update() {
                 fi
                 ;;
 
-            rhel|centos|oracle|rocky)
-                yum update --security -y --exclude=$packages_to_hold > /dev/null 2>&1 ;
-                
+            rhel|centos|oracle|rocky|ol)
+                yum update --security -y --exclude=$packages_to_hold;
+
                 case $? in
                     0) update_status="Success" ;;
                     *) update_status="Failed" ;;
@@ -275,14 +283,13 @@ func_perform_update() {
                 apt install -y \
                 -o Dpkg::Options::="--force-confdef" \
                 -o Dpkg::Options::="--force-confold" \
-                $(apt list --upgradable 2>/dev/null | grep -i sec | cut -d/ -f1 | grep ^[a-z]) ;
-                echo ""
+                $(apt list --upgradable 2>/dev/null | grep -i sec | cut -d/ -f1 | grep ^[a-z])
 
                 case $? in
                     0) update_status="Success" ;;
                     *) update_status="Failed" ;;
                 esac
-                
+
                 # Unmark the packages that were held:
                 if [ -n "$packages_to_hold" ]; then
 
@@ -296,9 +303,9 @@ func_perform_update() {
                 fi
                 ;;
 
-            rhel|centos|oracle|rocky)
+            rhel|centos|oracle|rocky|ol)
                 yum update --security -y ;
-            
+
                 case $? in
                     0) update_status="Success" ;;
                     *) update_status="Failed" ;;
@@ -315,26 +322,31 @@ func_perform_update() {
 
         # If the update process was successful, print a message indicating that the security update was completed successfully:
         Success)
+            log_mode="both"
             log_level=INFO
             log_msg="Security update process completed successfully."
             func_log "$log_level" "$log_msg" ;
-            exit 0;;
-        
+            ;;
+
         # If the update process failed, print an error message and exit:
-        Failed) 
+        Failed)
+            log_mode="both"
             log_level=ERROR
-            log_msg="Security update process failed. Please check the logs for more details."
-            func_log "$log_level" "$log_msg" ; 
-            exit 1 ;;
+            log_msg="Security update failed due to dependency issues or package conflicts. Check logs for details."
+            func_log "$log_level" "$log_msg" ;
+            exit 1
+            ;;
 
         # This case should never happen, but it's here just in case to catch any unexpected error during the update process:
         *)
+            log_mode="both"
             log_level=ERROR
             log_msg="Unexpected error during the update process. Please check the logs for more details."
-            func_log "$log_level" "$log_msg" ; 
-            exit 1 ;;
+            func_log "$log_level" "$log_msg" ;
+            exit 1
+            ;;
     esac
-    
+
 }
 
 func_print_evidence() {
@@ -343,11 +355,26 @@ func_print_evidence() {
     case $current_os in
 
         debian|ubuntu)
+            # Creates the CSV file to register the list of updated packages:
             echo "Package Name ; Old version ; New version" > $file_updates_performed ;
-            grep $date /var/log/apt/history.log -A4 | grep Upgrade | sed -e "s/Upgrade: //g" -e "s/),/)|/g" | \ 
-            xargs -d'|' -n1 | sed -e "/^$/d" | awk '{print$1 " ; "$2" ; "$3}' | sed -e "s/(//g" -e "s/)//g" -e "s/,//g" >> $file_updates_performed ;;
-    
-        rhel|centos|oracle|rocky)
+
+            # Collect the list of updated packages:
+            updated_packages=$(grep $date /var/log/apt/history.log -A4 | grep Upgrade | sed -e "s/Upgrade: //g" -e "s/),/)|/g" \
+            | xargs -d'|' -n1 | sed -e "/^$/d" | awk '{print$1 " ; "$2" ; "$3}' | sed -e "s/(//g" -e "s/)//g" -e "s/,//g") ;
+
+            # Register the list of updated packages into CSV file:
+            echo $updated_packages >> $file_updates_performed ;
+
+            # Register the list of updated packages into the log file:
+            log_mode="file"
+            log_level=INFO
+            # Collect only the package list to register in to the log:
+            log_msg="The following packages were successfully updated: \
+            `echo -n $(echo $updated_packages)`"
+            func_log "$log_level" "$log_msg"
+            ;;
+
+        rhel|centos|oracle|rocky|ol)
             # Collect the list of packages with security updates available before the update process:
             grep $date /var/log/dnf.rpm.log | grep -w Upgraded | awk -F "Upgraded:" '{print$2}' | sort | sed -e "s/ //g" > $file_pre_update ;
 
@@ -356,12 +383,20 @@ func_print_evidence() {
 
             # Create a CSV file with the list of packages that were updated, with their old and new versions:
             echo "Old version ; New version" > $file_updates_performed ;
-            paste -d ';' $file_pre_update $file_post_update >> $file_updates_performed ;;
+            paste -d ';' $file_pre_update $file_post_update >> $file_updates_performed ;
+
+            # Register the list of updated packages into the log file:
+            log_mode="file"
+            log_level=INFO
+            log_msg="The following packages were successfully updated: `echo $(cat $file_post_update)`"
+            func_log "$log_level" "$log_msg"
+            ;;
 
     esac
 
     if [ -z $file_updates_performed ]; then
 
+        log_mode="both"
         log_level=INFO
         log_msg="No security updates were applied on this system."
         func_log "$log_level" "$log_msg"
@@ -369,7 +404,7 @@ func_print_evidence() {
         exit 0
 
     else
-    
+
         # Print packages with security updates available:
         echo ""
         echo "${bar} Here is the CSV file with all the security updates available before the update process: ${bar}"
@@ -410,17 +445,19 @@ func_reboot_server() {
 
                 # Print a message indicating that the server will be rebooted to apply the new kernel and all security fixes:
                 echo "$bar Checking Kernel Version $bar"
+                log_mode="both"
                 log_level=INFO
                 log_msg="Kernel default differs from running kernel. Reboot scheduled to apply new kernel and security fixes."
                 func_log "$log_level" "$log_msg"
                 echo ""
 
                 # Reboot the server immediately:
-                shutdown -rf +30 "Rebooting to apply new kernel and security fixes. Please save your work and log out."
+                shutdown -rf now "Rebooting to apply new kernel and security fixes. Please save your work and log out."
 
             else
 
                 echo "$bar Checking Kernel Version $bar"
+                log_mode="both"
                 log_level=INFO
                 log_msg="Kernel default differs from running kernel. Auto-reboot is disabled, but manual reboot is highly recommended to apply the new kernel and security fixes."
                 func_log "$log_level" "$log_msg"
@@ -437,30 +474,35 @@ func_reboot_server() {
 func_cleanup() {
 
     if [ "$modal_keep_temporary_files" = true ]; then
-        
+
+        log_mode="both"
         log_level=INFO
         log_msg="The temporary files created during this update are being kept due to $tool_name configuration."
         func_log "$log_level" "$log_msg"
 
         if [ -f $file_updates_available ] ; then
+            log_mode="both"
             log_level=INFO
             log_msg="File with the list of available security updates: $file_updates_available"
             func_log "$log_level" "$log_msg"
         fi
-        
+
         if [ -f $file_updates_performed ] ; then
+            log_mode="both"
             log_level=INFO
             log_msg="File with the evidence of packages that were updated with their old and new versions: $file_updates_performed"
-            func_log "$log_level" "$log_msg"            
+            func_log "$log_level" "$log_msg"
         fi
 
         if [ -f $file_pre_update ] ; then
+            log_mode="both"
             log_level=INFO
             log_msg="Only for RHEL and RHEL-like. Temporary file for storing packages version before the update: $file_pre_update"
             func_log "$log_level" "$log_msg"
         fi
 
         if [ -f $file_post_update ] ; then
+            log_mode="both"
             log_level=INFO
             log_msg="Only for RHEL and RHEL-like. Temporary file for storing packages version after the update: $file_post_update"
             func_log "$log_level" "$log_msg"
@@ -468,7 +510,7 @@ func_cleanup() {
 
         echo ""
 
-    else 
+    else
 
         # Remove temporary files:
         if [ -f $file_updates_available ] ; then
@@ -482,7 +524,7 @@ func_cleanup() {
         if [ -f $file_post_update ] ; then
             rm -f $file_post_update
         fi
-        
+
         if [ -f $file_updates_performed ] ; then
             rm -f $file_updates_performed
         fi
@@ -491,38 +533,48 @@ func_cleanup() {
 
 }
 
-#
-# The Script starts here:
-#
+###########################
+# The Script starts here: #
+###########################
 
-# First, lets verify if the system meets the pre-update conditions:
-func_validation_pre_update
+# Check if the script is running as root:
+if [ "$EUID" -ne 0 ]; then
 
-# The following information are printed to show on VRX logs of processes
+    # If not, returns error message to user:
+    # It's not possible, nor even necessary, to use func_log because there is required root privs
+    echo "ERROR: This script must be run as root. Please use sudo or switch to the root user."
+    exit 1
+
+fi
+
+# Important: this script is designed to run via VRX. To collect evidence, some information
+# must be printed to stdout. When log_mode is set to "both", the log_level and log_msg
+# values are written to both stdout and the local log file.
+
+log_mode="both"
 log_level=INFO
+
+# Starting message with the server hostname:
+
 log_msg="Starting security update for server: ${hostname}"
 func_log "$log_level" "$log_msg"
-
-# Printing and Logging Tool Informations:
 echo ""
+
+# Printing tool informations:
 echo "${bar} Tool Information ${bar}"
-log_level=INFO
 log_msg="Tool Name: ${tool_name}"
 func_log "$log_level" "$log_msg"
 
-log_level=INFO
 log_msg="Tool Version: ${tool_version}"
 func_log "$log_level" "$log_msg"
 echo ""
 
+####
 # Displaying OS Informations:
 echo "$bar Current System Information $bar"
-
-log_level=INFO
 log_msg="Current OS: ${current_os}"
 func_log "$log_level" "$log_msg"
 
-log_level=INFO
 log_msg="Current Date: ${date}"
 func_log "$log_level" "$log_msg"
 
@@ -535,6 +587,7 @@ case $current_os in
     debian|ubuntu)
 
         # Update APT cache:
+        log_mode="both"
         log_level=INFO
         log_msg="Updating APT Cache..."
         func_log "$log_level" "$log_msg"
@@ -543,14 +596,16 @@ case $current_os in
 
         case $? in
             0)
+            log_mode="both"
             log_level=INFO
             log_msg="APT cache updated successfully."
             func_log "$log_level" "$log_msg" ;
             echo "" ;;
 
             *) echo "" ;
+            log_mode="both"
             log_level=ERROR
-            log_msg="Failed to update APT cache. Please check your network connection and try again."
+            log_msg="One or more repositories failed. Process aborted."
             func_log "$log_level" "$log_msg" ; exit 1 ;;
         esac
 
@@ -565,6 +620,7 @@ case $current_os in
         if subscription-manager identity 2>&1 | grep -i "system is not yet registered" > /dev/null ; then
 
             # If the system is not registered, print an error message and exit:
+            log_mode="both"
             log_level=ERROR
             log_msg="This RHEL system is not registered with Red Hat Subscription Manager. Please register the system to access security updates."
             func_log "$log_level" "$log_msg"
@@ -573,27 +629,30 @@ case $current_os in
         fi
 
         # Create a CSV file with the list of available security updates:
-        echo "Advisory (Errata);Type;Package" > $file_updates_available
-        yum updateinfo --list --security | grep ^R | sed -e "/^RH/s/ /;/g" -e "s/;;/;/g" >> $file_updates_available
-        
+        echo "Advisory (Errata);Package" > $file_updates_available
+        yum updateinfo --list --security | grep ^R | awk '{print$1" ; "$3}' >> $file_updates_available
+
         ;;
 
-    centos|oracle|rocky)
+    centos|oracle|rocky|ol)
+
         # Create a CSV file with the list of available security updates:
-        echo "Advisory (Errata);Type;Package" > $file_updates_available
-        yum updateinfo --list --security | grep ^R | sed -e "/^RH/s/ /;/g" -e "s/;;/;/g" >> $file_updates_available ;
+        echo "Advisory (Errata);Package" > $file_updates_available
+        yum updateinfo --list --security | grep ^"R\|E" | awk '{print$1" ; "$3}' >> $file_updates_available ;
         ;;
 
     # Unsupported OS:
-    *)  log_level=ERROR
+    *)
+        log_mode="both"
+        log_level=ERROR
         log_msg="Unsupported OS. This script supports only Debian/Ubuntu and RHEL/CentOS/Oracle Linux/Rocky Linux distributions."
         func_log "$log_level" "$log_msg" ; exit 1 ;;
 
 esac
 
-echo ""
 echo "$bar Checking for security updates $bar"
 
+log_mode="both"
 log_level=INFO
 log_msg="Checking for available security updates."
 func_log "$log_level" "$log_msg"
@@ -602,6 +661,7 @@ func_log "$log_level" "$log_msg"
 if wc -l $file_updates_available | grep -w ^"1" > /dev/null ; then
 
     # Display a message indicating that no security updates are available and exit:
+    log_mode="both"
     log_level=INFO
     log_msg="No security updates are available for this system."
     func_log "$log_level" "$log_msg"
@@ -613,19 +673,84 @@ if wc -l $file_updates_available | grep -w ^"1" > /dev/null ; then
         modal_keep_temporary_files=false
 
     fi
-
     func_cleanup
-    echo ""
     exit 0
 
 else
+
+    ##############################################
+    # Verifies if the system have disk available #
+    ##############################################
+
+    # Collect current disk available in MBs:
+    disk_available=$(df --output=avail -BM / | tail -1 | sed -e 's/M//')
+
+    case $current_os in
+
+        # Verifiy the update size for debian and debian-like systems:
+        debian|ubuntu)
+            update_size=$(apt list --upgradable 2>/dev/null \
+            | awk -F/ '/security.*upgradable/ {print $1}' \
+            | xargs apt-cache show 2>/dev/null | grep '^Installed-Size:' \
+            | awk '{sum+=$2} END {print int(sum/1024)}')
+            ;;
+
+        # Verify update size for rhel and rhel-like systems:
+        rhel|centos|oracle|rocky|ol)
+            update_size=$(yum update --security --assumeno 2>/dev/null \
+            | egrep '^Total download size:|Tamanho total do download:' \
+            | cut -d: -f2 \
+            | awk '{val=$1; unit=$2} /[0-9]/ {if (unit=="k") print int(val/1024); else if (unit=="G") print int(val*1024); else print int(val)}')
+            ;;
+
+    esac
+
+    if [ -z $update_size ]; then
+
+        log_mode="both"
+        log_level="INFO"
+        log_msg="No updates available, but a system reboot may be required."
+        func_log "$log_level" "$log_msg"
+        exit 0
+
+        # If the modal to keep temporary files is set to true, change to false to allow the cleanup:
+        if [ $modal_keep_temporary_files = true ] ; then
+
+            # Change the variable to false to allow the cleanup of temporary files:
+            modal_keep_temporary_files=false
+
+        fi
+
+        func_cleanup
+        exit 0
+
+    else
+
+        # Compare size of disk available and the update size:
+        if [ $disk_available -gt $update_size ]; then
+
+            log_level="INFO"
+            log_msg="Sufficient disk space available to proceed with the update. Available: ${disk_available} MB | Required: ${update_size} MB."
+
+        else
+
+            log_level="ERROR"
+            log_msg="Insufficient disk space to proceed with the update. Available: ${disk_available} | Required: ${update_size}."
+            exit 1
+
+        fi
+
+    fi
+
+    log_mode="both"
+    func_log "$log_level" "$log_msg"
 
     # Call function to collect list of packages to check if the package have security updates available:
     func_pkgs_to_avoid_update
 
     # Perform the update only in packages with security fixes, excluding the ones in the hold list:
     func_perform_update
-    
+
     # Print the evidence of the update process:
     func_print_evidence
 
@@ -637,21 +762,25 @@ else
 
     echo ""
     echo "$bar Finished ${bar}"
+    log_mode="both"
     log_level=INFO
     log_msg="Update Status: Completed."
     func_log "$log_level" "# $log_msg"
-    
+
+    log_mode="both"
     log_level=INFO
-    log_msg="Started: ${start_time} (`date +%Z`)"
+    log_msg="Started: ${date} ${start_time} (`date +%Z`)"
     func_log "$log_level" "# $log_msg"
 
+    log_mode="both"
     log_level=INFO
-    log_msg="Finished: $(date +%T) (`date +%Z`)"
+    log_msg="Finished: ${date} $(date +%T) (`date +%Z`)"
     func_log "$log_level" "# $log_msg"
 
+    log_mode="both"
     log_level=INFO
-    log_msg="Packages Updated: $(wc -l $file_updates_performed | awk '{print$1-2}')"
+    log_msg="Packages Updated: `expr $(wc -l $file_updates_performed | awk '{print$1}') - 1`"
     func_log "$log_level" "# $log_msg"
     echo ""
-    
+
 fi

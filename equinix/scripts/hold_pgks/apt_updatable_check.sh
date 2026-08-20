@@ -16,19 +16,25 @@ source /etc/os-release
 
 get_package_owner() {
     local binary="$1"
+    local pkg
 
     case "${ID_LIKE:-$ID}" in
         *debian*)
-            dpkg -S "$binary" 2>/dev/null | head -n1 | cut -d: -f1
+            pkg=$(dpkg -S "$binary" 2>/dev/null | head -n1 | cut -d: -f1)
             ;;
         *rhel*|*fedora*)
-            rpm -qf "$binary" 2>/dev/null
-            
+            pkg=$(rpm -qf "$binary" 2>/dev/null)
+
+            if [[ "$pkg" == file\ *\ is\ not\ owned\ by\ any\ package ]]; then
+                pkg=""
+            fi
             ;;
         *)
-            return 1
+            pkg=""
             ;;
     esac
+
+    echo "$pkg"
 }
 
 ss -tulpn | grep pid= | \

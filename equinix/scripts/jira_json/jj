@@ -60,7 +60,9 @@ cat <<EOF > $dst_file
 EOF
 
 # Loop to get the server lists and convert to Json format:
-for server in $(cat $file | awk '{print$1}'); do
+#for server in $(cat $file | awk '{print$1}'); do
+
+while read server; do
 
     # Increment the counter:
     counter=$((counter + 1))
@@ -71,7 +73,7 @@ for server in $(cat $file | awk '{print$1}'); do
     # Added the server to Json file:
     echo "            { \"id\": \"$counter\", \"summary\": \"$server\", \"done\": false, \"status\": { \"id\": \"659e6425-f825-42b8-b1ea-3fe7e83f5571\", \"color\": \"#30b1d1\", \"code\": \"To Do\", \"isDone\": false }}," >> $dst_file
 
-done
+done < $file
 
 # removes the comma at the last server from the list:
 lastLine="id: $counter"
